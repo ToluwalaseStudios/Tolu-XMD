@@ -192,43 +192,87 @@ async function runAio(ctx, sourceUrl, label = "ALL-IN-ONE") {
   await sendDownloadedMedia(ctx, fileUrl.toString(), label + " media");
 }
 
+function findSpotifyTrack(payload) {
+  const queue = [payload];
+  const seen = new Set();
+  while (queue.length) {
+    const value = queue.shift();
+    if (!value || typeof value !== "object" || seen.has(value)) continue;
+    seen.add(value);
+    if (Array.isArray(value)) {
+      queue.push(...value);
+      continue;
+    }
+    const preview = value.preview_url || value.previewUrl || value.preview ||
+      value.audioPreviewUrl || value.audio_preview_url;
+    const title = value.name || value.title || value.trackName;
+    if (typeof preview === "string" && typeof title === "string" && title.trim()) return value;
+    for (const child of Object.values(value)) {
+      if (child && typeof child === "object") queue.push(child);
+    }
+  }
+  return null;
+}
+
 async function runSong(ctx) {
   const query = String(ctx.args || "").trim();
-  if (!query) throw new Error("Usage: " + ctx.config.prefix + "song song title or artist");
+  if (!query) throw new Error("Usage: " + ctx.config.prefix + ctx.commandName + " song title or artist");
   if (query.length > 180) throw new Error("Keep the song search under 180 characters.");
 
-  await ctx.reply("🎵 Searching the official music catalogue...");
-  const payload = await requestExternalJson("https://itunes.apple.com/search", {
-    term: query,
-    entity: "song",
-    limit: 1,
-    media: "music"
-  }, 30000);
-  const track = Array.isArray(payload?.results) ? payload.results[0] : null;
-  if (!track) throw new Error("No matching track was found. Try adding the artist's name.");
-  const previewUrl = safeMediaUrl(track.previewUrl, "song preview");
-  if (!previewUrl) {
-    const trackUrl = safeMediaUrl(track.trackViewUrl, "music page");
-    if (trackUrl) {
-      await ctx.reply("🎵 *" + String(track.trackName || query).slice(0, 140) +
-        "*\n👤 " + String(track.artistName || "Unknown artist").slice(0, 100) +
-        "\n\nNo playable preview is available for this result. Listen here:\n" + trackUrl);
-      return;
-    }
-    throw new Error("This track has no playable preview in the music catalogue.");
+  await ctx.reply("🎵 Searching Spotify through OmegaTech...");
+  let track = null;
+  try {
+    const payload = await requestExternalJson("https://api.omegatech.app/api/Search/Spotify", {
+      query,
+      type: "tracks",
+      limit: 5,
+      preview: true
+    }, 30000);
+    track = findSpotifyTrack(payload);
+  } catch (error) {
+    console.warn("OmegaTech Spotify search failed; trying Apple catalogue:", error?.message || error);
   }
 
-  const title = String(track.trackName || query).replace(/[\\r\\n*_\\x60~]/g, " ").slice(0, 130);
-  const artist = String(track.artistName || "Unknown artist").replace(/[\\r\\n*_\\x60~]/g, " ").slice(0, 100);
+  if (!track) {
+    const payload = await requestExternalJson("https://itunes.apple.com/search", {
+      term: query,
+      entity: "song",
+      limit: 5,
+      media: "music"
+    }, 30000);
+    track = Array.isArray(payload?.results) ? payload.results.find(item => item?.previewUrl) : null;
+  }
+
+  if (!track) throw new Error("No track with a playable preview was found. Try adding the artist's name.");
+
+  const previewUrl = safeMediaUrl(
+    track.preview_url || track.previewUrl || track.preview ||
+    track.audioPreviewUrl || track.audio_preview_url,
+    "song preview"
+  );
+  if (!previewUrl) throw new Error("The music service returned no valid preview link.");
+
+  const artists = Array.isArray(track.artists)
+    ? track.artists.map(item => typeof item === "string" ? item : item?.name).filter(Boolean).join(", ")
+    : "";
+  const title = String(track.trackName || track.name || track.title || query)
+    .replace(/[\\r\\n*_\\x60~]/g, " ").slice(0, 130);
+  const artist = String(track.artistName || track.artist || artists || "Unknown artist")
+    .replace(/[\\r\\n*_\\x60~]/g, " ").slice(0, 100);
+
   await sendDownloadedMedia(ctx, previewUrl, title + " - " + artist, {
     isAudio: true,
-    type: "audio/mp4",
-    extension: "m4a"
+    type: "audio/mpeg",
+    extension: "mp3"
   }, "audio");
-  const trackUrl = safeMediaUrl(track.trackViewUrl, "music page");
-  await ctx.reply("🎵 *" + title + "*\n👤 " + artist +
-    "\n\nThis is the official short preview. " +
-    (trackUrl ? "Full track: " + trackUrl : "Open Apple Music to find the full track."));
+
+  const trackUrl = safeMediaUrl(
+    track.external_urls?.spotify || track.spotifyUrl || track.trackViewUrl || track.url,
+    "music page"
+  );
+  await ctx.reply("🎵 *" + title + "*\\n👤 " + artist +
+    "\\n\\nThis is the official short preview, not the full track. " +
+    (trackUrl ? "Listen to the full track here: " + trackUrl : "Open Spotify or Apple Music to find the full track."));
 }
 
 async function runYouTubeVideo(ctx) {
@@ -291,7 +335,7 @@ export default [
   },
   {
     name: "song",
-    aliases: ["play2", "ytsearch"],
+    aliases: ["play2", "ytsearch", "spotify"],
     category: "Downloads",
     description: "Find a song and send its official short audio preview.",
     run: runSong
