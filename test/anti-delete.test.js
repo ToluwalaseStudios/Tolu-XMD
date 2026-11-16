@@ -10,7 +10,7 @@ import {
   createAntiDeleteSettingsStore
 } from "../lib/anti-delete.js";
 
-test("anti-delete settings are off by default and are scoped per chat", async () => {
+test("anti-delete settings are off by default and the owner toggle applies globally", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "toluwalase-xmd-antidelete-"));
   try {
     const settings = createAntiDeleteSettingsStore({
@@ -27,11 +27,11 @@ test("anti-delete settings are off by default and are scoped per chat", async ()
     await settings.setDelivery("both");
     assert.deepEqual(await settings.getSettings(first), {
       enabled: true,
-      delivery: "both"
+      delivery: "dm"
     });
     assert.deepEqual(await settings.getSettings(second), {
-      enabled: false,
-      delivery: "both"
+      enabled: true,
+      delivery: "dm"
     });
     await settings.flush();
   } finally {
@@ -87,10 +87,10 @@ test("anti-delete caches enabled text messages and restores on Baileys REVOKE up
 
     assert.equal(handled, true);
     assert.equal(sent.length, 2);
-    assert.equal(sent[0].jid, groupJid);
+    assert.equal(sent[0].jid, "2348000000000@s.whatsapp.net");
     assert.match(sent[0].payload.text, /MESSAGE DELETED FOR EVERYONE/);
     assert.deepEqual(sent[0].payload.mentions, [deletingJid, senderJid]);
-    assert.equal(sent[1].jid, groupJid);
+    assert.equal(sent[1].jid, "2348000000000@s.whatsapp.net");
     assert.equal(sent[1].payload.text, "This message was deleted.");
     assert.equal(runtime.size, 0);
   } finally {
