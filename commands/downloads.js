@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import {
   requestApiJson,
   requestExternalJson,
@@ -82,34 +83,81 @@ function mediaKind(item, extension, fallbackKind = "document") {
   return fallbackKind;
 }
 
+async function fetchMediaFile(url) {
+  let response;
+  try {
+    response = await fetch(url, {
+      headers: { accept: "video/mp4,video/*,audio/*,image/*,application/octet-stream;q=0.9,*/*;q=0.5" },
+      signal: AbortSignal.timeout(90000),
+      redirect: "follow"
+    });
+  } catch {
+    throw new Error("Could not retrieve the actual media file from the provider.");
+  }
+
+  if (!response.ok) throw new Error("The media provider returned HTTP " + response.status + ".");
+  const declaredLength = Number(response.headers.get("content-length") || 0);
+  if (declaredLength > 64 * 1024 * 1024) {
+    throw new Error("The media file is larger than the bot's 64 MB download limit.");
+  }
+
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (!bytes.length) throw new Error("The provider returned an empty media file.");
+  if (bytes.length > 64 * 1024 * 1024) {
+    throw new Error("The media file is larger than the bot's 64 MB download limit.");
+  }
+
+  const type = String(response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+  const is = (offset, signature) => signature.every((value, index) => bytes[offset + index] === value);
+  const mp4 = bytes.length > 12 && bytes.toString("ascii", 4, 8) === "ftyp";
+  const webm = is(0, [0x1a, 0x45, 0xdf, 0xa3]);
+  const mp3 = bytes.toString("ascii", 0, 3) === "ID3" ||
+    (bytes.length > 1 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0);
+  const ogg = is(0, [0x4f, 0x67, 0x67, 0x53]);
+  const flac = bytes.toString("ascii", 0, 4) === "fLaC";
+  const jpeg = is(0, [0xff, 0xd8, 0xff]);
+  const png = is(0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const webp = bytes.length > 12 && bytes.toString("ascii", 0, 4) === "RIFF" &&
+    bytes.toString("ascii", 8, 12) === "WEBP";
+
+  if (mp4) return { buffer: bytes, mimetype: "video/mp4", extension: "mp4", kind: "video" };
+  if (webm) return { buffer: bytes, mimetype: "video/webm", extension: "webm", kind: "video" };
+  if (mp3) return { buffer: bytes, mimetype: "audio/mpeg", extension: "mp3", kind: "audio" };
+  if (ogg) return { buffer: bytes, mimetype: "audio/ogg", extension: "ogg", kind: "audio" };
+  if (flac) return { buffer: bytes, mimetype: "audio/flac", extension: "flac", kind: "audio" };
+  if (jpeg) return { buffer: bytes, mimetype: "image/jpeg", extension: "jpg", kind: "image" };
+  if (png) return { buffer: bytes, mimetype: "image/png", extension: "png", kind: "image" };
+  if (webp) return { buffer: bytes, mimetype: "image/webp", extension: "webp", kind: "image" };
+
+  if (type.includes("text/html") || type.includes("application/json") ||
+      bytes.toString("utf8", 0, Math.min(bytes.length, 120)).trimStart().startsWith("<")) {
+    throw new Error("The provider returned a webpage or API response instead of the actual video. Try another link.");
+  }
+  throw new Error("The provider returned an unsupported or damaged media file. No broken attachment was sent.");
+}
+
 async function sendDownloadedMedia(ctx, url, title, item = {}, fallbackKind = "document") {
-  const extension = extensionOf(item, url) || (fallbackKind === "video" ? "mp4" : fallbackKind === "audio" ? "mp3" : "");
-  const kind = mediaKind(item, extension, fallbackKind);
   const cleanTitle = String(title || "Toluwalase-XMD download").replace(/[\r\n*_\x60~]/g, " ").trim().slice(0, 150);
-  const details = [
+  const caption = unicodeBox("📥 DOWNLOAD READY", [
     "✅ *" + cleanTitle + "*",
     item.quality ? "✨ Quality: " + String(item.quality).slice(0, 50) : "",
     item.size ? "📦 Size: " + String(item.size).slice(0, 50) : ""
-  ].filter(Boolean).join("\n");
-  const caption = unicodeBox("📥 DOWNLOAD READY", details, { footer: true });
-  const fileName = safeFileName(cleanTitle, "Toluwalase-XMD-download") + (extension ? "." + extension : "");
+  ].filter(Boolean).join("\n"), { footer: true });
 
-  try {
-    if (kind === "audio") {
-      await ctx.send({ audio: { url }, mimetype: "audio/mpeg", fileName, ptt: false });
-    } else if (kind === "video") {
-      await ctx.send({ video: { url }, mimetype: "video/mp4", caption });
-    } else if (kind === "image") {
-      await ctx.send({ image: { url }, caption });
-    } else {
-      await ctx.send({ document: { url }, fileName, mimetype: "application/octet-stream", caption });
-    }
-    if (kind === "audio") await ctx.reply(caption);
-  } catch {
-    await ctx.reply(caption + "\n\n🔗 Direct download:\n" + url);
+  const media = await fetchMediaFile(url);
+  const fileName = safeFileName(cleanTitle, "Toluwalase-XMD-download") + "." + media.extension;
+
+  if (media.kind === "video") {
+    await ctx.send({ video: media.buffer, mimetype: media.mimetype, fileName, caption });
+  } else if (media.kind === "audio") {
+    await ctx.send({ audio: media.buffer, mimetype: media.mimetype, fileName, ptt: false });
+    await ctx.reply(caption);
+  } else if (media.kind === "image") {
+    await ctx.send({ image: media.buffer, mimetype: media.mimetype, fileName, caption });
+  } else {
+    throw new Error("The provider returned a file type WhatsApp cannot preview as media.");
   }
 }
-
 async function runAio(ctx, sourceUrl, label = "ALL-IN-ONE") {
   await ctx.reply(unicodeBox("📥 " + label + " DOWNLOAD",
     "🔗 Source: " + sourceUrl + "\n\nFetching available media formats...", { footer: false }));
