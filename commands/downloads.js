@@ -83,7 +83,7 @@ function mediaKind(item, extension, fallbackKind = "document") {
   return fallbackKind;
 }
 
-async function fetchMediaFile(url) {
+async function fetchMediaFile(url, expectedKind = "document") {
   let response;
   try {
     response = await fetch(url, {
@@ -110,6 +110,10 @@ async function fetchMediaFile(url) {
   const type = String(response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
   const is = (offset, signature) => signature.every((value, index) => bytes[offset + index] === value);
   const mp4 = bytes.length > 12 && bytes.toString("ascii", 4, 8) === "ftyp";
+  const wav = bytes.length > 12 && bytes.toString("ascii", 0, 4) === "RIFF" &&
+    bytes.toString("ascii", 8, 12) === "WAVE";
+  const aac = bytes.length > 2 && bytes[0] === 0xff &&
+    (bytes[1] === 0xf1 || bytes[1] === 0xf9);
   const webm = is(0, [0x1a, 0x45, 0xdf, 0xa3]);
   const mp3 = bytes.toString("ascii", 0, 3) === "ID3" ||
     (bytes.length > 1 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0);
@@ -120,11 +124,31 @@ async function fetchMediaFile(url) {
   const webp = bytes.length > 12 && bytes.toString("ascii", 0, 4) === "RIFF" &&
     bytes.toString("ascii", 8, 12) === "WEBP";
 
+  if (mp4 && (expectedKind === "audio" || type.startsWith("audio/"))) {
+    return { buffer: bytes, mimetype: "audio/mp4", extension: "m4a", kind: "audio" };
+  }
   if (mp4) return { buffer: bytes, mimetype: "video/mp4", extension: "mp4", kind: "video" };
   if (webm) return { buffer: bytes, mimetype: "video/webm", extension: "webm", kind: "video" };
   if (mp3) return { buffer: bytes, mimetype: "audio/mpeg", extension: "mp3", kind: "audio" };
   if (ogg) return { buffer: bytes, mimetype: "audio/ogg", extension: "ogg", kind: "audio" };
   if (flac) return { buffer: bytes, mimetype: "audio/flac", extension: "flac", kind: "audio" };
+  if (wav) return { buffer: bytes, mimetype: "audio/wav", extension: "wav", kind: "audio" };
+  if (aac) return { buffer: bytes, mimetype: "audio/aac", extension: "aac", kind: "audio" };
+  if (type.startsWith("audio/")) {
+    const audioExtensions = {
+      "audio/mpeg": ["mp3", "audio/mpeg"],
+      "audio/mp3": ["mp3", "audio/mpeg"],
+      "audio/mp4": ["m4a", "audio/mp4"],
+      "audio/aac": ["aac", "audio/aac"],
+      "audio/ogg": ["ogg", "audio/ogg"],
+      "audio/opus": ["opus", "audio/opus"],
+      "audio/flac": ["flac", "audio/flac"],
+      "audio/wav": ["wav", "audio/wav"],
+      "audio/webm": ["webm", "audio/webm"]
+    };
+    const [extension, mimetype] = audioExtensions[type] || ["bin", type];
+    return { buffer: bytes, mimetype, extension, kind: "audio" };
+  }
   if (jpeg) return { buffer: bytes, mimetype: "image/jpeg", extension: "jpg", kind: "image" };
   if (png) return { buffer: bytes, mimetype: "image/png", extension: "png", kind: "image" };
   if (webp) return { buffer: bytes, mimetype: "image/webp", extension: "webp", kind: "image" };
@@ -144,7 +168,7 @@ async function sendDownloadedMedia(ctx, url, title, item = {}, fallbackKind = "d
     item.size ? "📦 Size: " + String(item.size).slice(0, 50) : ""
   ].filter(Boolean).join("\n"), { footer: true });
 
-  const media = await fetchMediaFile(url);
+  const media = await fetchMediaFile(url, fallbackKind);
   const fileName = safeFileName(cleanTitle, "Toluwalase-XMD-download") + "." + media.extension;
 
   if (media.kind === "video") {
@@ -272,7 +296,7 @@ export default [
       await sendDownloadedMedia(ctx, result.audioUrl, result.title, {
         type: "audio/mpeg",
         extension: "mp3"
-      });
+      }, "audio");
     }
   },
   {
