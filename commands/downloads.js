@@ -271,7 +271,7 @@ async function runSong(ctx) {
     "music page"
   );
   await ctx.reply("🎵 *" + title + "*\\n👤 " + artist +
-    "\\n\\nThis is the official short preview, not the full track. " +
+    "\n\nThis is the official short preview, not the full track. " +
     (trackUrl ? "Listen to the full track here: " + trackUrl : "Open Spotify or Apple Music to find the full track."));
 }
 
