@@ -15,14 +15,13 @@ jobs:
 
       - name: Move files out of subfolder
         run: |
-          shopt -s dotglob
-          mv Toluwalase-XMD/* .
-          rmdir Toluwalase-XMD
+          cp -rf Toluwalase-XMD/. .
+          rm -rf Toluwalase-XMD
 
       - name: Save changes to GitHub
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@://github.com"
           git add .
-          git commit -m "Move files to root directory"
+          git commit -m "Move Toluwalase-XMD files to root"
           git push
