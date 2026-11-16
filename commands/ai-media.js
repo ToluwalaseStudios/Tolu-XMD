@@ -157,4 +157,38 @@ export default [
     params: text => ({ action: "tts", text }),
     audioPaths: ["data.audio_url", "audio_url", "result"]
   })
+  ,
+  {
+    name: "songgen",
+    aliases: ["aimusic"],
+    category: "AI Media",
+    description: "Create an original AI-generated song from a prompt.",
+    run: async ctx => {
+      const prompt = input(ctx, "describe the original song you want AI to create", 1200);
+      await ctx.reply("🎼 Creating your original AI music. This may take a little while...");
+      const payload = await requestExternalJson(API + "/ai/sonu3", {
+        action: "full",
+        prompt
+      }, 180000);
+      const audioUrl = valueAt(payload, [
+        "audioUrl", "audio_url", "data.audioUrl", "data.audio_url",
+        "result.audioUrl", "result.audio_url", "data.url", "url"
+      ]);
+      const title = valueAt(payload, ["title", "data.title", "result.title"]) || "AI-generated track";
+      const lyrics = valueAt(payload, ["lyrics", "data.lyrics", "result.lyrics"]);
+      if (!audioUrl) {
+        const detail = valueAt(payload, ["message", "error", "data.message"]);
+        throw new Error(detail || "The music generator did not return an audio link. Please try again later.");
+      }
+      let parsed;
+      try { parsed = new URL(audioUrl); } catch { throw new Error("The music generator returned an invalid audio link."); }
+      if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
+        throw new Error("The music generator returned an unsupported audio link.");
+      }
+      const lines = ["🎵 " + title, "🔗 Audio: " + parsed.toString()];
+      if (lyrics) lines.push("", "📝 Lyrics:", lyrics.slice(0, 1800));
+      await ctx.reply(withPoweredFooter(unicodeBox("🎼 YOUR AI-GENERATED SONG", lines.join("\n"), { footer: false }), 3600));
+    }
+  }
+
 ];
