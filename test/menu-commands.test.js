@@ -15,7 +15,7 @@ test("selected commands load without collisions and excluded modules stay inacti
     "menu", "help", "ping", "alive", "owner", "support", "time", "date",
     "version", "jid", "whoami", "calc", "poll", "coinflip", "dice",
     "8ball", "choose", "trivia", "riddle", "activity", "vv", "vv2",
-    "mode", "setprefix"
+    "mode", "setprefix", "song", "play2"
   ]) {
     assert.ok(lookup.has(name), "missing retained command " + name);
   }
@@ -43,6 +43,8 @@ test("menu contains each configured section in order and omits command descripti
   assert.ok(menu.includes(config.prefix + "mode"));
   assert.equal(menu.includes(" — Show"), false);
   assert.equal(menu.includes(" — Change"), false);
+  assert.ok(menu.includes("𝕿𝖔𝖑𝖚𝖜𝖆𝖑𝖆𝖘𝖊♚"));
+  assert.equal(menu.includes("⚕"), false);
 });
 
 test("configuration uses Toluwalase Studios branding", () => {
