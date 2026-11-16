@@ -246,52 +246,120 @@ function findAudioDownloadUrl(payload) {
   return "";
 }
 
+function findYouTubeMusicTrack(payload) {
+  const queue = [payload];
+  const seen = new Set();
+  while (queue.length) {
+    const value = queue.shift();
+    if (!value || typeof value !== "object" || seen.has(value)) continue;
+    seen.add(value);
+    if (Array.isArray(value)) {
+      queue.push(...value);
+      continue;
+    }
+    const videoId = value.videoId || value.video_id || value.videoid ||
+      value.youtubeId || value.youtube_id ||
+      (typeof value.id === "string" && /^[A-Za-z0-9_-]{11}$/.test(value.id) ? value.id : "");
+    if (typeof videoId === "string" && /^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+      return { ...value, videoId };
+    }
+    for (const child of Object.values(value)) {
+      if (child && typeof child === "object") queue.push(child);
+    }
+  }
+  return null;
+}
+
+async function downloadFromYouTubeMusic(query) {
+  const search = await requestExternalJson(
+    "https://api.omegatech.app/api/download/play",
+    { action: "search", query },
+    60000
+  );
+  const track = findYouTubeMusicTrack(search);
+  if (!track) throw new Error("The alternate music search returned no playable track.");
+  const download = await requestExternalJson(
+    "https://api.omegatech.app/api/download/play",
+    { action: "download", videoId: track.videoId, format: "mp3" },
+    90000
+  );
+  const audioUrl = findAudioDownloadUrl(download);
+  if (!audioUrl) {
+    const detail = String(download?.message || download?.error || "").slice(0, 160);
+    throw new Error(detail || "The alternate music provider did not return an audio file.");
+  }
+  const title = String(track.title || track.name || track.trackName || query)
+    .replace(/[\r\n*_\x60~]/g, " ").slice(0, 130);
+  const artist = String(track.artist || track.artistName || track.channelName || track.author || "")
+    .replace(/[\r\n*_\x60~]/g, " ").slice(0, 100);
+  return { audioUrl, title: artist ? title + " - " + artist : title };
+}
+
 async function runSong(ctx) {
   const query = String(ctx.args || "").trim();
   if (!query) throw new Error("Usage: " + ctx.config.prefix + ctx.commandName + " song title or artist");
   if (query.length > 180) throw new Error("Keep the song search under 180 characters.");
 
   await ctx.reply("🎵 Searching for the song...");
-  const payload = await requestExternalJson("https://api.omegatech.app/api/Search/Spotify", {
-    query,
-    type: "tracks",
-    limit: 5,
-    preview: false
-  }, 30000);
-  const track = findSpotifyTrack(payload);
-  if (!track) throw new Error("I couldn't find that song. Add the artist's name and try again.");
-
-  const artists = Array.isArray(track.artists)
-    ? track.artists.map(item => typeof item === "string" ? item : item?.name).filter(Boolean).join(", ")
-    : "";
-  const title = String(track.trackName || track.name || track.title || query)
-    .replace(/[\\r\\n*_\\x60~]/g, " ").slice(0, 130);
-  const artist = String(track.artistName || track.artist || artists || "Unknown artist")
-    .replace(/[\\r\\n*_\\x60~]/g, " ").slice(0, 100);
-  const spotifyUrl = track.external_urls?.spotify || track.spotifyUrl ||
-    track.trackUrl || (typeof track.id === "string" && /^[A-Za-z0-9]{22}$/.test(track.id)
-      ? "https://open.spotify.com/track/" + track.id : "");
-  if (!spotifyUrl || !/^https:\/\/open\.spotify\.com\/track\//i.test(spotifyUrl)) {
-    throw new Error("The search provider did not return a valid track link.");
+  let spotifyFailure = "";
+  try {
+    const payload = await requestExternalJson("https://api.omegatech.app/api/Search/Spotify", {
+      query,
+      type: "tracks",
+      limit: 5,
+      preview: false
+    }, 30000);
+    const track = findSpotifyTrack(payload);
+    if (track) {
+      const artists = Array.isArray(track.artists)
+        ? track.artists.map(item => typeof item === "string" ? item : item?.name).filter(Boolean).join(", ")
+        : "";
+      const title = String(track.trackName || track.name || track.title || query)
+        .replace(/[\r\n*_\x60~]/g, " ").slice(0, 130);
+      const artist = String(track.artistName || track.artist || artists || "Unknown artist")
+        .replace(/[\r\n*_\x60~]/g, " ").slice(0, 100);
+      const spotifyUrl = track.external_urls?.spotify || track.spotifyUrl ||
+        track.trackUrl || (typeof track.id === "string" && /^[A-Za-z0-9]{22}$/.test(track.id)
+          ? "https://open.spotify.com/track/" + track.id : "");
+      if (spotifyUrl && /^https:\/\/open\.spotify\.com\/track\//i.test(spotifyUrl)) {
+        await ctx.reply("⬇️ Found *" + title + "* — " + artist + "\nTrying the full-audio provider...");
+        try {
+          const downloadPayload = await requestExternalJson(
+            "https://api.omegatech.app/api/download/Spotify-dl",
+            { action: "download", url: spotifyUrl },
+            90000
+          );
+          const audioUrl = findAudioDownloadUrl(downloadPayload);
+          if (!audioUrl) throw new Error("Spotify download endpoint returned no audio URL.");
+          await sendDownloadedMedia(ctx, audioUrl, title + " - " + artist, {
+            isAudio: true, type: "audio/mpeg", extension: "mp3"
+          }, "audio");
+          return;
+        } catch (error) {
+          spotifyFailure = String(error?.message || error).slice(0, 180);
+        }
+      }
+    } else {
+      spotifyFailure = "Spotify search did not return a matching track.";
+    }
+  } catch (error) {
+    spotifyFailure = String(error?.message || error).slice(0, 180);
   }
 
-  await ctx.reply("⬇️ Found *" + title + "* — " + artist + "\\nGetting the full audio file...");
-  const downloadPayload = await requestExternalJson(
-    "https://api.omegatech.app/api/download/Spotify-dl",
-    { action: "download", url: spotifyUrl },
-    90000
-  );
-  const audioUrl = findAudioDownloadUrl(downloadPayload);
-  if (!audioUrl) {
-    const detail = String(downloadPayload?.message || downloadPayload?.error || "").slice(0, 180);
-    throw new Error(detail || "The music provider did not return a downloadable full audio file. No preview was sent.");
+  await ctx.reply("↪️ Primary music source is unavailable. Trying the alternate music source...");
+  try {
+    const result = await downloadFromYouTubeMusic(query);
+    await sendDownloadedMedia(ctx, result.audioUrl, result.title, {
+      isAudio: true, type: "audio/mpeg", extension: "mp3"
+    }, "audio");
+  } catch (error) {
+    const alternateFailure = String(error?.message || error).slice(0, 180);
+    throw new Error(
+      "Both music sources failed. Primary: " + (spotifyFailure || "unavailable") +
+      ". Alternate: " + alternateFailure +
+      ". No preview or broken file was sent."
+    );
   }
-
-  await sendDownloadedMedia(ctx, audioUrl, title + " - " + artist, {
-    isAudio: true,
-    type: "audio/mpeg",
-    extension: "mp3"
-  }, "audio");
 }
 
 async function runYouTubeVideo(ctx) {
