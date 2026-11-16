@@ -203,10 +203,13 @@ function findSpotifyTrack(payload) {
       queue.push(...value);
       continue;
     }
-    const preview = value.preview_url || value.previewUrl || value.preview ||
-      value.audioPreviewUrl || value.audio_preview_url;
     const title = value.name || value.title || value.trackName;
-    if (typeof preview === "string" && typeof title === "string" && title.trim()) return value;
+    const spotifyUrl = value.external_urls?.spotify || value.spotifyUrl ||
+      value.trackUrl || value.url;
+    const trackId = value.id || value.trackId;
+    if (typeof title === "string" && title.trim() &&
+        (typeof spotifyUrl === "string" && /open\.spotify\.com\/track\//i.test(spotifyUrl) ||
+         typeof trackId === "string" && /^[A-Za-z0-9]{22}$/.test(trackId))) return value;
     for (const child of Object.values(value)) {
       if (child && typeof child === "object") queue.push(child);
     }
@@ -214,43 +217,49 @@ function findSpotifyTrack(payload) {
   return null;
 }
 
+function findAudioDownloadUrl(payload) {
+  const queue = [payload];
+  const seen = new Set();
+  const candidates = [];
+  while (queue.length) {
+    const value = queue.shift();
+    if (!value || typeof value !== "object" || seen.has(value)) continue;
+    seen.add(value);
+    if (Array.isArray(value)) {
+      queue.push(...value);
+      continue;
+    }
+    for (const [key, child] of Object.entries(value)) {
+      if (typeof child === "string" && /^https:\/\//i.test(child)) {
+        const priority = /mp3|audio|download|file|url|link/i.test(key) ? 0 : 1;
+        candidates.push({ url: child, priority });
+      } else if (child && typeof child === "object") {
+        queue.push(child);
+      }
+    }
+  }
+  candidates.sort((a, b) => a.priority - b.priority);
+  for (const candidate of candidates) {
+    const url = safeMediaUrl(candidate.url, "full song audio");
+    if (url) return url;
+  }
+  return "";
+}
+
 async function runSong(ctx) {
   const query = String(ctx.args || "").trim();
   if (!query) throw new Error("Usage: " + ctx.config.prefix + ctx.commandName + " song title or artist");
   if (query.length > 180) throw new Error("Keep the song search under 180 characters.");
 
-  await ctx.reply("🎵 Searching Spotify through OmegaTech...");
-  let track = null;
-  try {
-    const payload = await requestExternalJson("https://api.omegatech.app/api/Search/Spotify", {
-      query,
-      type: "tracks",
-      limit: 5,
-      preview: true
-    }, 30000);
-    track = findSpotifyTrack(payload);
-  } catch (error) {
-    console.warn("OmegaTech Spotify search failed; trying Apple catalogue:", error?.message || error);
-  }
-
-  if (!track) {
-    const payload = await requestExternalJson("https://itunes.apple.com/search", {
-      term: query,
-      entity: "song",
-      limit: 5,
-      media: "music"
-    }, 30000);
-    track = Array.isArray(payload?.results) ? payload.results.find(item => item?.previewUrl) : null;
-  }
-
-  if (!track) throw new Error("No track with a playable preview was found. Try adding the artist's name.");
-
-  const previewUrl = safeMediaUrl(
-    track.preview_url || track.previewUrl || track.preview ||
-    track.audioPreviewUrl || track.audio_preview_url,
-    "song preview"
-  );
-  if (!previewUrl) throw new Error("The music service returned no valid preview link.");
+  await ctx.reply("🎵 Searching for the song...");
+  const payload = await requestExternalJson("https://api.omegatech.app/api/Search/Spotify", {
+    query,
+    type: "tracks",
+    limit: 5,
+    preview: false
+  }, 30000);
+  const track = findSpotifyTrack(payload);
+  if (!track) throw new Error("I couldn't find that song. Add the artist's name and try again.");
 
   const artists = Array.isArray(track.artists)
     ? track.artists.map(item => typeof item === "string" ? item : item?.name).filter(Boolean).join(", ")
@@ -259,20 +268,30 @@ async function runSong(ctx) {
     .replace(/[\\r\\n*_\\x60~]/g, " ").slice(0, 130);
   const artist = String(track.artistName || track.artist || artists || "Unknown artist")
     .replace(/[\\r\\n*_\\x60~]/g, " ").slice(0, 100);
+  const spotifyUrl = track.external_urls?.spotify || track.spotifyUrl ||
+    track.trackUrl || (typeof track.id === "string" && /^[A-Za-z0-9]{22}$/.test(track.id)
+      ? "https://open.spotify.com/track/" + track.id : "");
+  if (!spotifyUrl || !/^https:\/\/open\.spotify\.com\/track\//i.test(spotifyUrl)) {
+    throw new Error("The search provider did not return a valid track link.");
+  }
 
-  await sendDownloadedMedia(ctx, previewUrl, title + " - " + artist, {
+  await ctx.reply("⬇️ Found *" + title + "* — " + artist + "\\nGetting the full audio file...");
+  const downloadPayload = await requestExternalJson(
+    "https://api.omegatech.app/api/download/Spotify-dl",
+    { action: "download", url: spotifyUrl },
+    90000
+  );
+  const audioUrl = findAudioDownloadUrl(downloadPayload);
+  if (!audioUrl) {
+    const detail = String(downloadPayload?.message || downloadPayload?.error || "").slice(0, 180);
+    throw new Error(detail || "The music provider did not return a downloadable full audio file. No preview was sent.");
+  }
+
+  await sendDownloadedMedia(ctx, audioUrl, title + " - " + artist, {
     isAudio: true,
     type: "audio/mpeg",
     extension: "mp3"
   }, "audio");
-
-  const trackUrl = safeMediaUrl(
-    track.external_urls?.spotify || track.spotifyUrl || track.trackViewUrl || track.url,
-    "music page"
-  );
-  await ctx.reply("🎵 *" + title + "*\\n👤 " + artist +
-    "\n\nThis is the official short preview, not the full track. " +
-    (trackUrl ? "Listen to the full track here: " + trackUrl : "Open Spotify or Apple Music to find the full track."));
 }
 
 async function runYouTubeVideo(ctx) {
@@ -337,7 +356,7 @@ export default [
     name: "song",
     aliases: ["play2", "ytsearch", "spotify"],
     category: "Downloads",
-    description: "Find a song and send its official short audio preview.",
+    description: "Search a song and send the full audio file to WhatsApp.",
     run: runSong
   },
   {
