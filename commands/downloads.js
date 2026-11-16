@@ -6,7 +6,6 @@ import {
   unicodeBox,
   validateHttpsUrl
 } from "../lib/api-client.js";
-import { searchYouTubeAudio } from "../lib/youtube-play.js";
 
 const AIO_FILE_API = "https://api.zukoxmd.my.id/api/v1/aio/file";
 
@@ -195,37 +194,18 @@ async function runAio(ctx, sourceUrl, label = "ALL-IN-ONE") {
 
 async function runYouTubeSearch(ctx) {
   const query = String(ctx.args || "").trim();
-  if (!query) throw new Error("Usage: " + ctx.config.prefix + "ytsearch song title or creator");
-  if (query.length > 200) throw new Error("Keep the search under 200 characters.");
+  if (!query) throw new Error("Usage: " + ctx.config.prefix + "song song title or artist");
+  if (query.length > 180) throw new Error("Keep the song search under 180 characters.");
 
-  await ctx.reply("🔎 Searching YouTube for: " + query);
-  const payload = await requestExternalJson(
-    "https://eliteprotech-apis.zone.id/search/ytsearch",
-    { q: query },
-    45000
+  const searchUrl = new URL("https://www.youtube.com/results");
+  searchUrl.searchParams.set("search_query", query);
+  await ctx.reply(
+    "🎵 *SONG SEARCH*\n\n" +
+    "Search: *" + query.replace(/[\\r\\n*_\\x60~]/g, " ").slice(0, 180) + "*\n\n" +
+    "Open the official YouTube search results below to listen to the track:\n" +
+    searchUrl.toString() + "\n\n" +
+    "_This command uses YouTube's official search page, so it doesn't depend on the failing third-party audio API._"
   );
-  const videos = Array.isArray(payload?.results?.videos) ? payload.results.videos :
-    Array.isArray(payload?.videos) ? payload.videos : [];
-  if (!videos.length) throw new Error("No YouTube results were returned.");
-
-  const lines = videos.slice(0, 5).map((video, index) => {
-    const title = String(video?.title || "Untitled").replace(/[\r\n*_\x60~]/g, " ").slice(0, 150);
-    const author = String(video?.author?.name || video?.author || "Unknown creator").replace(/[\r\n]/g, " ").slice(0, 80);
-    let link = "";
-    try {
-      const url = new URL(String(video?.url || ""));
-      if (url.protocol === "https:" && ["youtube.com", "www.youtube.com", "youtu.be"].includes(url.hostname.toLowerCase())) {
-        link = url.toString();
-      }
-    } catch {}
-    return [
-      (index + 1) + ". *" + title + "*",
-      "👤 " + author,
-      video?.duration ? "⏱ " + String(video.duration).slice(0, 30) : "",
-      link ? "🔗 " + link : ""
-    ].filter(Boolean).join("\n");
-  });
-  await ctx.reply(unicodeBox("🔎 YOUTUBE RESULTS", lines.join("\n\n"), { footer: true }));
 }
 
 async function runYouTubeVideo(ctx) {
@@ -287,25 +267,10 @@ export default [
     run: async ctx => runAio(ctx, requirePlatformUrl(ctx, "TikTok", PLATFORM_HOSTS.tiktok), "TIKTOK")
   },
   {
-    name: "play2",
-    aliases: ["song"],
+    name: "song",
+    aliases: ["play2", "ytsearch"],
     category: "Downloads",
-    description: "Search YouTube and send the matching track as MP3 using Ikyyxd.",
-    run: async ctx => {
-      const query = String(ctx.args || "").trim();
-      if (!query) throw new Error("Usage: " + ctx.config.prefix + "play2 song title or artist");
-      await ctx.reply("🎵 Searching YouTube and preparing the audio...");
-      const result = await searchYouTubeAudio(query);
-      await sendDownloadedMedia(ctx, result.audioUrl, result.title, {
-        type: "audio/mpeg",
-        extension: "mp3"
-      }, "audio");
-    }
-  },
-  {
-    name: "ytsearch",
-    category: "Downloads",
-    description: "Search YouTube and list matching videos without downloading them.",
+    description: "Search for a song on the official YouTube results page.",
     run: runYouTubeSearch
   },
   {
