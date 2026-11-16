@@ -227,7 +227,7 @@ export default [
       const rawUrl = requirePrompt(ctx, "YouTube video URL");
       let parsed;
       try { parsed = new URL(rawUrl); } catch { throw new Error("Provide a valid YouTube URL."); }
-      const host = parsed.hostname.toLowerCase().replace(/^www\\./, "");
+      const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
       if (!["youtube.com", "m.youtube.com", "youtu.be", "music.youtube.com"].includes(host)) {
         throw new Error("That is not a supported YouTube URL.");
       }
