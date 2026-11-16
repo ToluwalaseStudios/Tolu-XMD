@@ -1,4 +1,4 @@
-name: Unzip Uploaded File
+name: Move Files to Main Folder
 
 on:
   workflow_dispatch:
@@ -7,22 +7,22 @@ permissions:
   contents: write
 
 jobs:
-  unzip:
+  move-files:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository files
         uses: actions/checkout@v4
 
-      - name: Unzip the file
+      - name: Move files out of subfolder
         run: |
-          unzip -o Toluwalase-XMD-Quoted-Message-Retrieval-Fix.zip
-          rm Toluwalase-XMD-Quoted-Message-Retrieval-Fix.zip
+          shopt -s dotglob
+          mv Toluwalase-XMD-Quoted-Message-Retrieval-Fix/* .
+          rmdir Toluwalase-XMD-Quoted-Message-Retrieval-Fix
 
-      - name: Save extracted files to GitHub
+      - name: Save changes to GitHub
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@://github.com"
           git add .
-          git commit -m "Extract zip file"
+          git commit -m "Move files to root directory"
           git push
-          
