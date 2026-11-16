@@ -156,8 +156,7 @@ export default [
     endpoint: "/ai/Multi-Text-to-speech",
     params: text => ({ action: "tts", text }),
     audioPaths: ["data.audio_url", "audio_url", "result"]
-  })
-  ,
+  }),
   {
     name: "songgen",
     aliases: ["aimusic"],
@@ -172,7 +171,7 @@ export default [
       }, 180000);
       const audioUrl = valueAt(payload, [
         "audioUrl", "audio_url", "data.audioUrl", "data.audio_url",
-        "result.audioUrl", "result.audio_url", "data.url", "url"
+        "result.audioUrl", "result.audio_url", "data.audio", "result.audio", "audio", "data.url", "url"
       ]);
       const title = valueAt(payload, ["title", "data.title", "result.title"]) || "AI-generated track";
       const lyrics = valueAt(payload, ["lyrics", "data.lyrics", "result.lyrics"]);
