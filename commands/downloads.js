@@ -192,20 +192,43 @@ async function runAio(ctx, sourceUrl, label = "ALL-IN-ONE") {
   await sendDownloadedMedia(ctx, fileUrl.toString(), label + " media");
 }
 
-async function runYouTubeSearch(ctx) {
+async function runSong(ctx) {
   const query = String(ctx.args || "").trim();
   if (!query) throw new Error("Usage: " + ctx.config.prefix + "song song title or artist");
   if (query.length > 180) throw new Error("Keep the song search under 180 characters.");
 
-  const searchUrl = new URL("https://www.youtube.com/results");
-  searchUrl.searchParams.set("search_query", query);
-  await ctx.reply(
-    "🎵 *SONG SEARCH*\n\n" +
-    "Search: *" + query.replace(/[\\r\\n*_\\x60~]/g, " ").slice(0, 180) + "*\n\n" +
-    "Open the official YouTube search results below to listen to the track:\n" +
-    searchUrl.toString() + "\n\n" +
-    "_This command uses YouTube's official search page, so it doesn't depend on the failing third-party audio API._"
-  );
+  await ctx.reply("🎵 Searching the official music catalogue...");
+  const payload = await requestExternalJson("https://itunes.apple.com/search", {
+    term: query,
+    entity: "song",
+    limit: 1,
+    media: "music"
+  }, 30000);
+  const track = Array.isArray(payload?.results) ? payload.results[0] : null;
+  if (!track) throw new Error("No matching track was found. Try adding the artist's name.");
+  const previewUrl = safeMediaUrl(track.previewUrl, "song preview");
+  if (!previewUrl) {
+    const trackUrl = safeMediaUrl(track.trackViewUrl, "music page");
+    if (trackUrl) {
+      await ctx.reply("🎵 *" + String(track.trackName || query).slice(0, 140) +
+        "*\n👤 " + String(track.artistName || "Unknown artist").slice(0, 100) +
+        "\n\nNo playable preview is available for this result. Listen here:\n" + trackUrl);
+      return;
+    }
+    throw new Error("This track has no playable preview in the music catalogue.");
+  }
+
+  const title = String(track.trackName || query).replace(/[\\r\\n*_\\x60~]/g, " ").slice(0, 130);
+  const artist = String(track.artistName || "Unknown artist").replace(/[\\r\\n*_\\x60~]/g, " ").slice(0, 100);
+  await sendDownloadedMedia(ctx, previewUrl, title + " - " + artist, {
+    isAudio: true,
+    type: "audio/mp4",
+    extension: "m4a"
+  }, "audio");
+  const trackUrl = safeMediaUrl(track.trackViewUrl, "music page");
+  await ctx.reply("🎵 *" + title + "*\n👤 " + artist +
+    "\n\nThis is the official short preview. " +
+    (trackUrl ? "Full track: " + trackUrl : "Open Apple Music to find the full track."));
 }
 
 async function runYouTubeVideo(ctx) {
@@ -270,8 +293,8 @@ export default [
     name: "song",
     aliases: ["play2", "ytsearch"],
     category: "Downloads",
-    description: "Search for a song on the official YouTube results page.",
-    run: runYouTubeSearch
+    description: "Find a song and send its official short audio preview.",
+    run: runSong
   },
   {
     name: "video",
