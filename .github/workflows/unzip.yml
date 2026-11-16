@@ -16,8 +16,8 @@ jobs:
       - name: Move files out of subfolder
         run: |
           shopt -s dotglob
-          mv Toluwalase-XMD-Quoted-Message-Retrieval-Fix/* .
-          rmdir Toluwalase-XMD-Quoted-Message-Retrieval-Fix
+          mv Toluwalase-XMD/* .
+          rmdir Toluwalase-XMD
 
       - name: Save changes to GitHub
         run: |
