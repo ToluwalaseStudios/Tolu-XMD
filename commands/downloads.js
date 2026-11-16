@@ -8,7 +8,7 @@ import {
 } from "../lib/api-client.js";
 import { searchYouTubeAudio } from "../lib/youtube-play.js";
 
-const AIO_API = "https://api.zukoxmd.my.id/api/v1/aio";
+const AIO_FILE_API = "https://api.zukoxmd.my.id/api/v1/aio/file";
 
 const PLATFORM_HOSTS = Object.freeze({
   fb: ["facebook.com", "fb.com", "fb.watch"],
@@ -160,15 +160,10 @@ async function sendDownloadedMedia(ctx, url, title, item = {}, fallbackKind = "d
 }
 async function runAio(ctx, sourceUrl, label = "ALL-IN-ONE") {
   await ctx.reply(unicodeBox("📥 " + label + " DOWNLOAD",
-    "🔗 Source: " + sourceUrl + "\n\nFetching available media formats...", { footer: false }));
-  const payload = await requestExternalJson(AIO_API, { url: sourceUrl }, 90000);
-  const data = responseData(payload);
-  if (payload?.success === false || payload?.status === false || data?.success === false || data?.status === false) {
-    throw new Error("The download provider could not process that link.");
-  }
-  const selected = chooseMedia(data);
-  if (!selected) throw new Error("The provider did not return a valid HTTPS media URL.");
-  await sendDownloadedMedia(ctx, selected.url, data.title || data.source || "Media download", selected.item, "video");
+    "🔗 Source: " + sourceUrl + "\n\nFetching the actual media file...", { footer: false }));
+  const fileUrl = new URL(AIO_FILE_API);
+  fileUrl.searchParams.set("url", sourceUrl);
+  await sendDownloadedMedia(ctx, fileUrl.toString(), label + " media");
 }
 
 async function runYouTubeSearch(ctx) {
