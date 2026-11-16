@@ -2,19 +2,13 @@ import { downloadMediaMessage } from "@whiskeysockets/baileys";
 import { POWERED_FOOTER } from "../../lib/api-client.js";
 import {
   getContextInfo,
-  hasViewOnceMarker,
   normalizeJid,
   unwrapMessage
 } from "../../lib/message-utils.js";
 
 function getQuotedMessage(ctx) {
   const info = getContextInfo(ctx.msg?.message);
-  if (!info?.stanzaId || !info?.quotedMessage) return null;
-  const key = getQuotedKey(ctx);
-  const original = key && ctx.getMessageByKey?.(key);
-  // Prefer the original incoming WebMessageInfo: quotedMessage commonly omits
-  // transport fields such as url/directPath that Baileys needs for media fetch.
-  return original?.message || info.quotedMessage;
+  return info?.stanzaId && info?.quotedMessage ? info.quotedMessage : null;
 }
 
 function getQuotedKey(ctx) {
@@ -46,7 +40,14 @@ function viewOnceMedia(message) {
 }
 
 function hasViewOnceWrapper(message) {
-  return hasViewOnceMarker(message);
+  let current = message;
+  for (let depth = 0; current && depth < 10; depth += 1) {
+    if (Object.keys(current).some(key => /viewOnceMessage/i.test(key))) return true;
+    current = current.ephemeralMessage?.message ||
+      current.documentWithCaptionMessage?.message ||
+      current.deviceSentMessage?.message;
+  }
+  return false;
 }
 
 const MAX_RECOVERED_MEDIA_ENTRIES = 50;
@@ -120,14 +121,8 @@ async function recoverViewOnce(ctx) {
 
   let buffer;
   try {
-    const originalMessage = ctx.getMessageByKey?.(key);
-    const downloadableMessage = originalMessage || {
-      key,
-      message: quoted,
-      messageTimestamp: ctx.msg?.messageTimestamp
-    };
     buffer = await downloadMediaMessage(
-      downloadableMessage,
+      { key, message: quoted, messageTimestamp: ctx.msg?.messageTimestamp },
       "buffer",
       {},
       { reuploadRequest: ctx.sock.updateMediaMessage }
@@ -227,7 +222,7 @@ export default [
 
       try {
         await ctx.sock.sendMessage(target, viewOncePayload(result));
-        await ctx.reply("✅ The media was sent to your private chat with Toluwalase-XMD.");
+        await ctx.reply("✅ The media was sent to your private chat with Toluwalase XMD.");
       } catch (error) {
         await ctx.reply("⚠️ Could not send the media to your DM: " +
           String(error?.message || error).slice(0, 180));
