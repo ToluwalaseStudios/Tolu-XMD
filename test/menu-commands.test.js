@@ -44,7 +44,7 @@ test("menu contains each configured section in order and omits command descripti
   assert.equal(menu.includes(" — Show"), false);
   assert.equal(menu.includes(" — Change"), false);
   assert.ok(menu.includes("𝕿𝖔𝖑𝖚𝖜𝖆𝖑𝖆𝖘𝖊♚"));
-  assert.equal(menu.includes("⚕"), false);
+  assert.equal(menu.includes("⚕"), false);\n  assert.ok(menu.includes("\\n"));\n  assert.equal(menu.includes("\\\\n"), false);
 });
 
 test("configuration uses Toluwalase Studios branding", () => {
