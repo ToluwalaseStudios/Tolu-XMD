@@ -295,71 +295,124 @@ async function downloadFromYouTubeMusic(query) {
   return { audioUrl, title: artist ? title + " - " + artist : title };
 }
 
+function providerItems(payload) {
+  const data = payload?.data?.data || payload?.data || payload?.result || payload;
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
+function findProviderAudioUrl(payload) {
+  const queue = [payload], seen = new Set(), found = [];
+  while (queue.length) {
+    const value = queue.shift();
+    if (!value || typeof value !== "object" || seen.has(value)) continue;
+    seen.add(value);
+    if (Array.isArray(value)) { queue.push(...value); continue; }
+    for (const [key, child] of Object.entries(value)) {
+      if (typeof child === "string" && /^https:\/\//i.test(child)) {
+        const k = key.toLowerCase();
+        if (/audio|mp3|stream|download|media|file|source|url/i.test(k) &&
+            !/image|thumbnail|cover|artwork|photo|youtube|page|webpage/i.test(k)) {
+          found.push({ url: child, score: /mp3|audio|stream|download/i.test(k) ? 0 : 1 });
+        }
+      } else if (child && typeof child === "object") queue.push(child);
+    }
+  }
+  found.sort((a, b) => a.score - b.score);
+  for (const item of found) {
+    const url = safeMediaUrl(item.url, "song audio");
+    if (url) return url;
+  }
+  return "";
+}
+
+function bestAudiomackItem(items, query) {
+  const q = query.toLowerCase();
+  return items.find(item => String(item.title || "").toLowerCase() === q) ||
+    items.find(item => (String(item.title || "") + " " + String(item.artist || "")).toLowerCase().includes(q)) ||
+    items.find(item => item.type === "song") || items[0];
+}
+
+function bestCeenaijaItem(items, query) {
+  const q = query.toLowerCase();
+  return items.find(item => String(item.song || "").toLowerCase() === q) ||
+    items.find(item => (String(item.song || "") + " " + String(item.artist || "")).toLowerCase().includes(q)) ||
+    items.find(item => item.hasAudio) || items[0];
+}
+
+async function downloadFromAudiomack(query) {
+  const search = await requestExternalJson(
+    "https://api.omegatech.app/api/download/audiomack",
+    { action: "search", q: query, show: "songs", limit: 10, page: 1 },
+    45000
+  );
+  const item = bestAudiomackItem(providerItems(search), query);
+  if (!item) throw new Error("Audiomack search returned no songs.");
+  const params = { action: "stream" };
+  if (item.artistSlug) params.artist = item.artistSlug;
+  if (item.slug) params.slug = item.slug;
+  if (!item.artistSlug || !item.slug) {
+    if (item.pageUrl) params.url = item.pageUrl;
+    else if (item.id) params.id = item.id;
+  }
+  const stream = await requestExternalJson(
+    "https://api.omegatech.app/api/download/audiomack",
+    params,
+    90000
+  );
+  const audioUrl = findProviderAudioUrl(stream);
+  if (!audioUrl) throw new Error("Audiomack stream response contained no audio URL.");
+  return { audioUrl, title: [item.title, item.artist].filter(Boolean).join(" - ") || query };
+}
+
+async function downloadFromCeenaija(query) {
+  const search = await requestExternalJson(
+    "https://api.omegatech.app/api/download/ceenaija",
+    { action: "search", q: query, page: 1, limit: 10 },
+    45000
+  );
+  const item = bestCeenaijaItem(providerItems(search), query);
+  if (!item) throw new Error("Ceenaija search returned no songs.");
+  if (item.hasAudio === false) throw new Error("The selected Ceenaija result has no audio.");
+  const params = { action: "info" };
+  if (item.id != null) params.id = item.id;
+  else if (item.link) params.url = item.link;
+  else throw new Error("Ceenaija result did not include an info identifier.");
+  const info = await requestExternalJson(
+    "https://api.omegatech.app/api/download/ceenaija",
+    params,
+    90000
+  );
+  const audioUrl = findProviderAudioUrl(info);
+  if (!audioUrl) throw new Error("Ceenaija info response contained no audio URL.");
+  return {
+    audioUrl,
+    title: item.fullTitle || [item.song, item.artist].filter(Boolean).join(" - ") || query
+  };
+}
+
 async function runSong(ctx) {
   const query = String(ctx.args || "").trim();
   if (!query) throw new Error("Usage: " + ctx.config.prefix + ctx.commandName + " song title or artist");
   if (query.length > 180) throw new Error("Keep the song search under 180 characters.");
-
-  await ctx.reply("🎵 Searching for the song...");
-  let spotifyFailure = "";
-  try {
-    const payload = await requestExternalJson("https://api.omegatech.app/api/Search/Spotify", {
-      query,
-      type: "tracks",
-      limit: 5,
-      preview: false
-    }, 30000);
-    const track = findSpotifyTrack(payload);
-    if (track) {
-      const artists = Array.isArray(track.artists)
-        ? track.artists.map(item => typeof item === "string" ? item : item?.name).filter(Boolean).join(", ")
-        : "";
-      const title = String(track.trackName || track.name || track.title || query)
-        .replace(/[\r\n*_\x60~]/g, " ").slice(0, 130);
-      const artist = String(track.artistName || track.artist || artists || "Unknown artist")
-        .replace(/[\r\n*_\x60~]/g, " ").slice(0, 100);
-      const spotifyUrl = track.external_urls?.spotify || track.spotifyUrl ||
-        track.trackUrl || (typeof track.id === "string" && /^[A-Za-z0-9]{22}$/.test(track.id)
-          ? "https://open.spotify.com/track/" + track.id : "");
-      if (spotifyUrl && /^https:\/\/open\.spotify\.com\/track\//i.test(spotifyUrl)) {
-        await ctx.reply("⬇️ Found *" + title + "* — " + artist + "\nTrying the full-audio provider...");
-        try {
-          const downloadPayload = await requestExternalJson(
-            "https://api.omegatech.app/api/download/Spotify-dl",
-            { action: "download", url: spotifyUrl },
-            90000
-          );
-          const audioUrl = findAudioDownloadUrl(downloadPayload);
-          if (!audioUrl) throw new Error("Spotify download endpoint returned no audio URL.");
-          await sendDownloadedMedia(ctx, audioUrl, title + " - " + artist, {
-            isAudio: true, type: "audio/mpeg", extension: "mp3"
-          }, "audio");
-          return;
-        } catch (error) {
-          spotifyFailure = String(error?.message || error).slice(0, 180);
-        }
-      }
-    } else {
-      spotifyFailure = "Spotify search did not return a matching track.";
+  await ctx.reply("🎵 Searching Audiomack and Ceenaija for your song...");
+  const failures = [];
+  for (const [provider, downloader] of [
+    ["Audiomack", downloadFromAudiomack],
+    ["Ceenaija", downloadFromCeenaija]
+  ]) {
+    try {
+      const result = await downloader(query);
+      const cleanTitle = String(result.title).replace(/[\r\n*_~]/g, " ").slice(0, 150);
+      await ctx.reply("⬇️ Found *" + cleanTitle + "* on " + provider + ". Sending the audio...");
+      await sendDownloadedMedia(ctx, result.audioUrl, result.title, {
+        isAudio: true, type: "audio/mpeg", extension: "mp3"
+      }, "audio");
+      return;
+    } catch (error) {
+      failures.push(provider + ": " + String(error?.message || error).slice(0, 150));
     }
-  } catch (error) {
-    spotifyFailure = String(error?.message || error).slice(0, 180);
   }
-
-  await ctx.reply("↪️ Primary music source is unavailable. Trying the alternate music source...");
-  try {
-    const result = await downloadFromYouTubeMusic(query);
-    await sendDownloadedMedia(ctx, result.audioUrl, result.title, {
-      isAudio: true, type: "audio/mpeg", extension: "mp3"
-    }, "audio");
-  } catch (error) {
-    const alternateFailure = String(error?.message || error).slice(0, 180);
-    throw new Error(
-      "Both music sources failed. Primary: " + (spotifyFailure || "unavailable") +
-      ". Alternate: " + alternateFailure +
-      ". No preview or broken file was sent."
-    );
-  }
+  throw new Error("Could not retrieve the full audio from the configured providers. " + failures.join(" | "));
 }
 
 async function runYouTubeVideo(ctx) {
