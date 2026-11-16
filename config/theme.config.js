@@ -8,7 +8,7 @@ export default Object.freeze({
     { key: "AI Media", title: "🎨 AI MEDIA", commandNames: ["flux", "pollination", "tts", "tts2", "tts3", "tts4", "tts5"] },
     { key: "News Desk", title: "📰 NEWS DESK", commandNames: ["news", "aljazeera", "cnn", "bbc", "guardian", "npr", "nytimes", "foxnews", "skynews", "dw", "punchnews"] },
     { key: "Group Tools", title: "👥 GROUP TOOLS", commandNames: ["revoke", "kick", "add", "promote", "demote", "leave", "antilink", "warn", "warnlist", "welcome", "goodbye", "groupinfo", "groupjid", "getgcpp", "groupcount", "groupstats", "admins", "tagall", "link", "groupname", "groupdesc", "close", "open"] },
-    { key: "Downloads", title: "📥 DOWNLOADS", commandNames: ["aio", "fb", "twitter", "instagram", "ytmp4", "tiktok", "play2", "ytsearch", "video"] },
+    { key: "Downloads", title: "📥 DOWNLOADS", commandNames: ["aio", "fb", "twitter", "instagram", "ytmp4", "tiktok", "play2", "ytsearch", "spotify", "video"] },
     { key: "Fun Games", title: "🎮 FUN GAMES", commandNames: ["calc", "poll", "coinflip", "dice", "8ball", "choose", "trivia", "riddle", "activity"] },
     { key: "Canvas Tools", title: "🖼 CANVAS TOOLS", commandNames: ["wndwqute", "canvasquote"] },
     { key: "Media Tools", title: "🛠 MEDIA TOOLS", commandNames: ["vv", "vv2", "lyrics"] },
