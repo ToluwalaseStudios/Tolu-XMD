@@ -186,4 +186,60 @@ export default [
     paths: ["answer", "data.answer", "reply", "data.reply"],
     description: "Ask the DeepSeek V3.2 model."
   })
+  ,
+  createOmegaCommand({
+    name: "qwenweb",
+    title: "🔎 QWEN WEB RESEARCH",
+    endpoint: "/ai/Qwen-mv2",
+    params: message => ({ message, search: true, mode: "search" }),
+    paths: ["result", "data.result", "answer", "data.answer", "reply", "data.reply", "response"],
+    description: "Ask Qwen to research a question using web search."
+  }),
+  createOmegaCommand({
+    name: "study",
+    title: "🎓 AI STUDY TUTOR",
+    endpoint: "/ai/Qwen-mv2",
+    params: message => ({
+      message: "Act as a clear, patient study tutor. Explain step by step, define key terms, show worked examples where useful, and check the reasoning. Question: " + message,
+      mode: "chat",
+      search: false
+    }),
+    paths: ["result", "data.result", "answer", "data.answer", "reply", "data.reply", "response"],
+    description: "Get step-by-step explanations from an AI study tutor."
+  }),
+  createOmegaCommand({
+    name: "code",
+    title: "💻 AI CODING ASSISTANT",
+    endpoint: "/ai/Deepseek",
+    params: message => ({
+      message: "You are a careful programming assistant. Explain the solution, provide complete runnable code when requested, and point out assumptions. Request: " + message,
+      model: "v32"
+    }),
+    paths: ["answer", "data.answer", "reply", "data.reply", "response", "data.response", "result"],
+    description: "Generate, explain, and debug code with AI."
+  }),
+  {
+    name: "ytbrief",
+    aliases: ["ytsummary"],
+    category: "AI & Chat",
+    description: "Summarize a public YouTube video with AI notes.",
+    run: async ctx => {
+      const rawUrl = requirePrompt(ctx, "YouTube video URL");
+      let parsed;
+      try { parsed = new URL(rawUrl); } catch { throw new Error("Provide a valid YouTube URL."); }
+      const host = parsed.hostname.toLowerCase().replace(/^www\\./, "");
+      if (!["youtube.com", "m.youtube.com", "youtu.be", "music.youtube.com"].includes(host)) {
+        throw new Error("That is not a supported YouTube URL.");
+      }
+      const payload = await requestExternalJson(OMEGATECH + "/ai/YouTube-summary", {
+        action: "summarize",
+        url: parsed.toString(),
+        language: "en"
+      }, 90000);
+      const answer = valueAt(payload, ["summary", "data.summary", "result.summary", "result", "data.result", "response"]) ||
+        extractApiText(payload);
+      await sendAnswer(ctx, "📺 AI YOUTUBE SUMMARY", answer);
+    }
+  }
+
 ];
