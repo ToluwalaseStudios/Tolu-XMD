@@ -7,8 +7,7 @@ import {
 } from "../lib/api-client.js";
 import { searchYouTubeAudio } from "../lib/youtube-play.js";
 
-const AIO_API = "https://apis.nabeestech.com/api/v1/download/aio";
-const AIO_KEY = String(process.env.NABEES_API_KEY || "").trim();
+const AIO_API = "https://api.zukoxmd.my.id/api/v1/aio";
 
 const PLATFORM_HOSTS = Object.freeze({
   fb: ["facebook.com", "fb.com", "fb.watch"],
@@ -114,10 +113,7 @@ async function sendDownloadedMedia(ctx, url, title, item = {}) {
 async function runAio(ctx, sourceUrl, label = "ALL-IN-ONE") {
   await ctx.reply(unicodeBox("📥 " + label + " DOWNLOAD",
     "🔗 Source: " + sourceUrl + "\n\nFetching available media formats...", { footer: false }));
-  const params = { url: sourceUrl };
-  if (AIO_KEY) params.apikey = AIO_KEY;
-
-  const payload = await requestExternalJson(AIO_API, params, 90000);
+  const payload = await requestExternalJson(AIO_API, { url: sourceUrl }, 90000);
   const data = responseData(payload);
   if (payload?.success === false || payload?.status === false || data?.success === false || data?.status === false) {
     throw new Error("The download provider could not process that link.");
