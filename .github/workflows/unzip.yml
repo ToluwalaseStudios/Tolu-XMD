@@ -1,0 +1,28 @@
+name: Unzip Uploaded File
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository files
+        uses: actions/checkout@v4
+
+      - name: Unzip the file
+        run: |
+          unzip -o Toluwalase-XMD-Quoted-Message-Retrieval-Fix.zip
+          rm Toluwalase-XMD-Quoted-Message-Retrieval-Fix.zip
+
+      - name: Save extracted files to GitHub
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@://github.com"
+          git add .
+          git commit -m "Extract zip file"
+          git push
+          
