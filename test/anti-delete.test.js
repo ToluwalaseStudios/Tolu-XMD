@@ -21,7 +21,7 @@ test("anti-delete settings are off by default and the owner toggle applies globa
 
     assert.deepEqual(await settings.getSettings(first), {
       enabled: false,
-      delivery: "chat"
+      delivery: "dm"
     });
     await settings.setEnabled(first, true);
     await settings.setDelivery("both");
