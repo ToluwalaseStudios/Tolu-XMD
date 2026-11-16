@@ -74,17 +74,17 @@ function extensionOf(item, url) {
   }
 }
 
-function mediaKind(item, extension) {
+function mediaKind(item, extension, fallbackKind = "document") {
   const type = String(item?.type || item?.mimeType || item?.mime || "").toLowerCase();
   if (item?.isImage || type.includes("image") || ["jpg", "jpeg", "png", "webp", "gif"].includes(extension)) return "image";
   if (item?.isAudio || type.includes("audio") || ["mp3", "m4a", "aac", "ogg", "opus", "wav", "flac"].includes(extension)) return "audio";
   if (item?.isVideo || type.includes("video") || ["mp4", "m4v", "mov", "webm", "mkv", "3gp"].includes(extension)) return "video";
-  return "document";
+  return fallbackKind;
 }
 
-async function sendDownloadedMedia(ctx, url, title, item = {}) {
-  const extension = extensionOf(item, url);
-  const kind = mediaKind(item, extension);
+async function sendDownloadedMedia(ctx, url, title, item = {}, fallbackKind = "document") {
+  const extension = extensionOf(item, url) || (fallbackKind === "video" ? "mp4" : fallbackKind === "audio" ? "mp3" : "");
+  const kind = mediaKind(item, extension, fallbackKind);
   const cleanTitle = String(title || "Toluwalase-XMD download").replace(/[\r\n*_\x60~]/g, " ").trim().slice(0, 150);
   const details = [
     "✅ *" + cleanTitle + "*",
@@ -120,7 +120,7 @@ async function runAio(ctx, sourceUrl, label = "ALL-IN-ONE") {
   }
   const selected = chooseMedia(data);
   if (!selected) throw new Error("The provider did not return a valid HTTPS media URL.");
-  await sendDownloadedMedia(ctx, selected.url, data.title || data.source || "Media download", selected.item);
+  await sendDownloadedMedia(ctx, selected.url, data.title || data.source || "Media download", selected.item, "video");
 }
 
 async function runYouTubeSearch(ctx) {
@@ -176,7 +176,7 @@ export default [
   {
     name: "aio",
     category: "Downloads",
-    description: "Download supported public media links through the NabeesTech all-in-one provider.",
+    description: "Download supported public media links through the LUMINA all-in-one provider.",
     run: async ctx => {
       const url = requirePlatformUrl(ctx, "supported media", [
         ...PLATFORM_HOSTS.fb, ...PLATFORM_HOSTS.twitter, ...PLATFORM_HOSTS.instagram,
