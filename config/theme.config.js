@@ -1,15 +1,15 @@
 
 export default Object.freeze({
-  botTitle: "⚕𝕿𝖔𝖑𝖚𝖜𝖆𝖑𝖆𝖘𝖊♚",
+  botTitle: "𝕿𝖔𝖑𝖚𝖜𝖆𝖑𝖆𝖘𝖊♚",
   footer: "⚡ POWERED BY TOLUWALASE STUDIOS",
 
   menu: {
-    top: "╭━━〔 ",
-    titleEnd: " 〕━━┈⊷",
-    infoLine: "┃ ✦ ",
-    itemLine: "┃ ◈ ",
+    top: "╭━━━━━━━━━━〔 ",
+    titleEnd: " 〕━━━━━━━━━━╮",
+    infoLine: "┃  ✦ ",
+    itemLine: "┃  › ",
     blankLine: "┃",
-    bottom: "╰━━━━━━━━━━━━━━┈⊷"
+    bottom: "╰━━━━━━━━━━━━━━━━━━━━╯"
   },
 
   sections: [
