@@ -124,7 +124,7 @@ export async function runLocalTerminal(options = {}) {
     console.warn("WhatsApp connection closed. Reconnecting in " + info.delayMs + " ms...");
   });
   runtime.on("loggedOut", () => {
-    console.error("This WhatsApp session was logged out. Remove the local auth folder and pair again.");
+    console.error("WhatsApp reported that the saved session is logged out. Preserve the auth folder for diagnosis; do not delete its files.");
   });
   runtime.on("runtimeError", error => {
     console.error("Toluwalase-XMD runtime error:", error && error.message || error);
@@ -138,7 +138,10 @@ export async function runLocalTerminal(options = {}) {
     console.log("Session folder: " + (sessionInfo.exists ? "present" : "not present yet"));
     console.log("creds.json: " + (sessionInfo.credentialsPresent ? "present" : "not present"));
     console.log("Baileys key files: " + sessionInfo.keyFileCount);
-    if (sessionInfo.credentialsPresent) {
+    if (sessionInfo.credentialsPresent && sessionInfo.credentialsReadable === false) {
+      console.warn("creds.json exists but could not be read as valid JSON.");
+    }
+    if (sessionInfo.credentialsPresent && sessionInfo.credentialsReadable !== false) {
       console.log("Saved session metadata: registered=" + Boolean(sessionInfo.registered) +
         ", account=" + Boolean(sessionInfo.accountPresent) +
         ", identity=" + Boolean(sessionInfo.identityPresent));
