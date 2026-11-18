@@ -16,7 +16,7 @@ export default Object.freeze({
   ownerNumber,
   ownerNumbers: Object.freeze(ownerNumber ? [ownerNumber] : []),
   defaultMode: String(process.env.BOT_MODE || "public").toLowerCase() === "private" ? "private" : "public",
-  sessionDirectory: String(process.env.TOLUWALASE_SESSION_DIR || process.env.FEI_SESSION_DIR || "./auth_info_baileys").trim(),
+  sessionDirectory: String(process.env.TOLUWALASE_SESSION_DIR || "./auth_info_baileys").trim(),
   dataDirectory: String(process.env.TOLUWALASE_DATA_DIR || process.env.FEI_DATA_DIR || "./data").trim(),
   logLevel: String(process.env.LOG_LEVEL || "info").trim().toLowerCase(),
   browser: "Chrome",
