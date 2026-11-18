@@ -1,6 +1,7 @@
 import "dotenv/config";
 
 import path from "node:path";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 
@@ -8,6 +9,62 @@ import config from "./config/bot.config.js";
 import theme from "./config/theme.config.js";
 import { loadCommands } from "./handlers/command-loader.js";
 import { createWhatsAppRuntime } from "./lib/whatsapp-runtime.js";
+
+
+async function inspectSessionDirectory(directory) {
+  const directoryInfo = await stat(directory).catch(() => null);
+  if (!directoryInfo?.isDirectory()) {
+    return { exists: false, credentialsPresent: false, keyFileCount: 0, registered: false, accountPresent: false, identityPresent: false };
+  }
+
+  const names = await readdir(directory).catch(() => []);
+  let metadata = {};
+  if (names.includes("creds.json")) {
+    try {
+      const credentials = JSON.parse(await readFile(path.join(directory, "creds.json"), "utf8"));
+      metadata = {
+        registered: credentials.registered === true,
+        accountPresent: Boolean(credentials.account),
+        identityPresent: Boolean(credentials.me?.id || credentials.me?.lid)
+      };
+    } catch {
+      metadata = { credentialsReadable: false };
+    }
+  }
+
+  return {
+    exists: true,
+    credentialsPresent: names.includes("creds.json"),
+    keyFileCount: names.filter(name => name.endsWith(".json") && name !== "creds.json").length,
+    ...metadata
+  };
+}
+
+function waitForWhatsAppConnection(runtime, timeoutMs = 45000) {
+  const current = runtime.getStatus();
+  if (current.connected) return Promise.resolve({ outcome: "connected", status: current });
+
+  return new Promise(resolve => {
+    let settled = false;
+    let timer;
+    const unsubscribers = [];
+
+    const finish = (outcome, details = {}) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      for (const unsubscribe of unsubscribers) unsubscribe();
+      resolve({ outcome, status: runtime.getStatus(), ...details });
+    };
+
+    unsubscribers.push(runtime.on("connected", status => finish("connected", { status })));
+    unsubscribers.push(runtime.on("loggedOut", info => finish("logged_out", { info })));
+    timer = setTimeout(() => finish("timeout"), timeoutMs);
+
+    // Cover the small race where the socket opens while listeners are attached.
+    if (runtime.getStatus().connected) finish("connected");
+  });
+}
 
 function normalizePhone(value) {
   return String(value || "").replace(/\D/g, "");
@@ -22,7 +79,6 @@ export async function runLocalTerminal(options = {}) {
   const sessionDirectory = path.resolve(String(
     options.sessionDirectory ||
     process.env.TOLUWALASE_SESSION_DIR ||
-    process.env.FEI_SESSION_DIR ||
     config.sessionDirectory
   ));
 
@@ -78,6 +134,15 @@ export async function runLocalTerminal(options = {}) {
     console.log("\n╭━━〔 Toluwalase-XMD · LOCAL RUNTIME 〕━━┈⊷");
     console.log("Baileys: @whiskeysockets/baileys (official npm package)");
     console.log("Session directory: " + sessionDirectory);
+    const sessionInfo = await inspectSessionDirectory(sessionDirectory);
+    console.log("Session folder: " + (sessionInfo.exists ? "present" : "not present yet"));
+    console.log("creds.json: " + (sessionInfo.credentialsPresent ? "present" : "not present"));
+    console.log("Baileys key files: " + sessionInfo.keyFileCount);
+    if (sessionInfo.credentialsPresent) {
+      console.log("Saved session metadata: registered=" + Boolean(sessionInfo.registered) +
+        ", account=" + Boolean(sessionInfo.accountPresent) +
+        ", identity=" + Boolean(sessionInfo.identityPresent));
+    }
     console.log("Loaded " + commands.length + " command module(s).");
     console.log("Press Ctrl+C to stop the runtime.\n");
 
@@ -116,10 +181,29 @@ export async function runLocalTerminal(options = {}) {
         console.log("Enter this code on WhatsApp. Keep it private.\n");
       }
     } else {
-      console.log("An existing local WhatsApp session was found. Reconnecting without requesting another code...");
+      console.log("A registered WhatsApp session was loaded. Waiting for WhatsApp to confirm the connection...");
+      const connection = await waitForWhatsAppConnection(runtime);
+      if (connection.outcome === "connected") {
+        console.log("WhatsApp connection confirmed. Toluwalase-XMD is ready.");
+      } else if (connection.outcome === "logged_out") {
+        const code = Number(connection.info?.error?.output?.statusCode || connection.info?.error?.statusCode || 0);
+        console.error("WhatsApp rejected the saved session" + (code ? " (status " + code + ")" : "") + ".");
+        console.error("The process is running, but WhatsApp is not connected. Do not delete the session folder until its contents are backed up.");
+      } else {
+        const latest = runtime.getStatus();
+        console.warn("WhatsApp connection was not confirmed within " + "45 seconds" + ".");
+        console.warn("Current state: " + latest.status + "; reconnect attempts: " + latest.reconnectAttempts + ".");
+        if (latest.lastError) console.warn("Last WhatsApp error: " + latest.lastError);
+        console.warn("KataBump may show the process as online while WhatsApp is still disconnected.");
+      }
     }
 
-    console.log("Toluwalase-XMD is running. Keep this process active while the WhatsApp session is connected.");
+    const finalStatus = runtime.getStatus();
+    if (finalStatus.connected) {
+      console.log("Toluwalase-XMD is running with WhatsApp connected.");
+    } else {
+      console.warn("Toluwalase-XMD process is running, but WhatsApp connection is not confirmed yet.");
+    }
     return runtime;
   } catch (error) {
     await shutdown();
