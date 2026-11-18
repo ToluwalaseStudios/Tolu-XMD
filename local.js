@@ -43,6 +43,7 @@ async function inspectSessionDirectory(directory) {
 function waitForWhatsAppConnection(runtime, timeoutMs = 45000) {
   const current = runtime.getStatus();
   if (current.connected) return Promise.resolve({ outcome: "connected", status: current });
+  if (current.status === "logged_out") return Promise.resolve({ outcome: "logged_out", status: current });
 
   return new Promise(resolve => {
     let settled = false;
@@ -191,7 +192,8 @@ export async function runLocalTerminal(options = {}) {
       } else if (connection.outcome === "logged_out") {
         const code = Number(connection.info?.error?.output?.statusCode || connection.info?.error?.statusCode || 0);
         console.error("WhatsApp rejected the saved session" + (code ? " (status " + code + ")" : "") + ".");
-        console.error("The process is running, but WhatsApp is not connected. Do not delete the session folder until its contents are backed up.");
+        console.error("The process is running, but WhatsApp is not connected. Last error: " + (runtime.getStatus().lastError || "not provided"));
+        console.error("Do not delete the session folder; preserve it for diagnosis.");
       } else {
         const latest = runtime.getStatus();
         console.warn("WhatsApp connection was not confirmed within " + "45 seconds" + ".");
