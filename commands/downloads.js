@@ -270,6 +270,20 @@ function findYouTubeMusicTrack(payload) {
   return null;
 }
 
+async function downloadFromAppleMusic(query) {
+  const catalog = await requestExternalJson("https://itunes.apple.com/search", { term: query, entity: "song", limit: 10, country: "ng" }, 45000);
+  const tracks = Array.isArray(catalog?.results) ? catalog.results : [];
+  if (!tracks.length) throw new Error("Apple Music search returned no matching tracks.");
+  const normalized = query.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const track = tracks.find(item => String(item.trackName || "").toLowerCase() === normalized) || tracks.find(item => (String(item.trackName || "") + " " + String(item.artistName || "")).toLowerCase().includes(normalized)) || tracks[0];
+  const trackUrl = safeMediaUrl(track.trackViewUrl, "Apple Music track page");
+  if (!trackUrl) throw new Error("Apple Music search did not return a valid track page.");
+  const payload = await requestExternalJson("https://api.omegatech.app/api/Search/Applemusic", { action: "download", query, url: trackUrl }, 90000);
+  const audioUrl = findAudioDownloadUrl(payload);
+  if (!audioUrl) throw new Error("Apple Music provider returned no audio download URL.");
+  const data = responseData(payload);
+  return { audioUrl, title: [data.title || track.trackName || query, data.artist || track.artistName || ""].filter(Boolean).join(" - ") };
+}
 async function downloadFromYouTubeMusic(query) {
   const search = await requestExternalJson(
     "https://api.omegatech.app/api/download/play",
@@ -397,6 +411,7 @@ async function runSong(ctx) {
   await ctx.reply("🎵 Searching available music providers for your song...");
   const failures = [];
   for (const [provider, downloader] of [
+    ["Apple Music", downloadFromAppleMusic],
     ["OmegaTech Play", downloadFromYouTubeMusic],
     ["Audiomack", downloadFromAudiomack],
     ["Ceenaija", downloadFromCeenaija]
@@ -476,7 +491,7 @@ export default [
   },
   {
     name: "song",
-    aliases: ["play2", "ytsearch", "spotify"],
+    aliases: ["play2", "ytsearch"],
     category: "Downloads",
     description: "Search a song and send the full audio file to WhatsApp.",
     run: runSong
