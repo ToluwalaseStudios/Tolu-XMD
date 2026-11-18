@@ -394,9 +394,10 @@ async function runSong(ctx) {
   const query = String(ctx.args || "").trim();
   if (!query) throw new Error("Usage: " + ctx.config.prefix + ctx.commandName + " song title or artist");
   if (query.length > 180) throw new Error("Keep the song search under 180 characters.");
-  await ctx.reply("🎵 Searching Audiomack and Ceenaija for your song...");
+  await ctx.reply("🎵 Searching available music providers for your song...");
   const failures = [];
   for (const [provider, downloader] of [
+    ["OmegaTech Play", downloadFromYouTubeMusic],
     ["Audiomack", downloadFromAudiomack],
     ["Ceenaija", downloadFromCeenaija]
   ]) {
