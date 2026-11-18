@@ -13,6 +13,10 @@ function isPrivateAddress(address) {
   if (value === "::" || value === "::1" || value.startsWith("fc") ||
       value.startsWith("fd") || /^fe[89ab]/.test(value) || value.startsWith("ff")) return true;
   if (value.startsWith("::ffff:")) return isPrivateAddress(value.slice(7));
+  if (value.includes(":")) {
+    // Only globally routable IPv6 unicast space (2000::/3) is accepted.
+    return !/^[23]/.test(value) || value.startsWith("2001:db8:");
+  }
   const parts = value.split(".").map(Number);
   if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return true;
   return parts[0] === 0 || parts[0] === 10 || parts[0] === 127 ||
