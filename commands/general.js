@@ -35,16 +35,25 @@ const commands = [
     category: "General",
     description: "Show the branded Toluwalase-XMD menu and available command sections.",
     run: async ctx => {
-      const menu = buildMenu({ commands: ctx.commands, config: ctx.config, theme: ctx.theme, compact: true });
+      const menu = buildMenu({ commands: ctx.commands, config: ctx.config, theme: ctx.theme });
       if (ctx.config.imageUrl) {
         try {
           await ctx.send({
-            image: { url: ctx.config.imageUrl },
-            caption: menu
+            text: menu,
+            contextInfo: {
+              externalAdReply: {
+                title: String(ctx.theme?.botTitle || ctx.config.name || "Toluwalase XMD"),
+                body: String(ctx.theme?.footer || "POWERED BY TOLUWALASE STUDIOS"),
+                mediaType: 1,
+                thumbnailUrl: ctx.config.imageUrl,
+                sourceUrl: ctx.config.botUrl || ctx.config.imageUrl,
+                renderLargerThumbnail: true
+              }
+            }
           });
           return;
         } catch (error) {
-          console.warn("Toluwalase-XMD menu artwork could not be sent; using the text menu:", error?.message || error);
+          console.warn("Toluwalase-XMD menu preview could not be sent; using the full text menu:", error?.message || error);
         }
       }
       await ctx.reply(menu);
