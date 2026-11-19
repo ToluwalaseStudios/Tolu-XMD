@@ -4,11 +4,10 @@ export default Object.freeze({
 
   sections: [
     { key: "General", title: "🏠 GENERAL", commandNames: ["menu", "help", "ping", "alive", "owner", "support", "time", "date", "version", "jid", "whoami"] },
-    { key: "AI & Chat", title: "🧠 AI & CHAT", commandNames: ["ai", "ask", "gpt", "chatgpt", "mathgpt", "deepseek", "translate", "summarize", "fable5", "qwen", "deepseek2", "qwenweb", "study", "code", "ytbrief", "ytsummary"] },
-    { key: "AI Media", title: "🎨 AI MEDIA", commandNames: ["flux", "pollination", "tts", "tts2", "tts3", "tts4", "tts5", "songgen", "aimusic"] },
+    { key: "AI", title: "🤖 AI", commandNames: ["ai", "ask", "gpt", "chatgpt", "mathgpt", "deepseek", "translate", "summarize", "fable5", "qwen", "deepseek2", "qwenweb", "study", "code", "ytbrief", "ytsummary", "claudeomega", "freegen", "aigen", "txt2video", "aivideo", "flux", "pollination", "tts", "tts2", "tts3", "tts4", "tts5", "songgen", "aimusic"] },
     { key: "News Desk", title: "📰 NEWS DESK", commandNames: ["news", "aljazeera", "cnn", "bbc", "guardian", "npr", "nytimes", "foxnews", "skynews", "dw", "punchnews"] },
     { key: "Group Tools", title: "👥 GROUP TOOLS", commandNames: ["revoke", "kick", "add", "promote", "demote", "leave", "antilink", "warn", "warnlist", "welcome", "goodbye", "groupinfo", "groupjid", "getgcpp", "groupcount", "groupstats", "admins", "tagall", "link", "groupname", "groupdesc", "close", "open"] },
-    { key: "Downloads", title: "📥 DOWNLOADS", commandNames: ["aio", "fb", "twitter", "instagram", "ytmp4", "tiktok", "song", "play2", "ytsearch", "spotify", "video"] },
+    { key: "Downloads", title: "📥 DOWNLOADS", commandNames: ["aio", "fb", "twitter", "instagram", "ytmp4", "tiktok", "song", "play2", "ytsearch", "spotify", "video", "fetch"] },
     { key: "Fun Games", title: "🎮 FUN GAMES", commandNames: ["calc", "poll", "coinflip", "dice", "8ball", "choose", "trivia", "riddle", "activity"] },
     { key: "Canvas Tools", title: "🖼 CANVAS TOOLS", commandNames: ["wndwqute", "canvasquote"] },
     { key: "Media Tools", title: "🛠 MEDIA TOOLS", commandNames: ["vv", "vv2", "lyrics"] },
