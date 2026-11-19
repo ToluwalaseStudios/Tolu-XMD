@@ -107,11 +107,36 @@ test("menu artwork and full menu are sent together as one image message", async 
 });
 
 
-test("compact menu stays within WhatsApp image-caption length", async () => {
+test("full menu retains its original decorated multi-section layout", async () => {
   const { commands } = await loadCommands(path.resolve("commands"));
-  const menu = buildMenu({ commands, config, theme, compact: true });
-  assert.ok(menu.length <= 1024, "menu caption must fit WhatsApp's 1024-character caption limit");
-  assert.ok(menu.includes("Prefix: " + config.prefix));
-  assert.ok(menu.includes("DOWNLOADS:"));
-  assert.ok(menu.includes("fetch"));
+  const menu = buildMenu({ commands, config, theme });
+  assert.ok(menu.length > 1024, "full menu should not be compacted to fit an image caption");
+  assert.ok(menu.includes("╭━━〔"));
+  assert.ok(menu.includes("┃ ◈ " + config.prefix + "menu"));
+  for (const section of theme.sections) assert.ok(menu.includes(section.title));
+  assert.ok(menu.includes(theme.footer));
+  assert.ok(menu.split("\\n").length > 30);
+});
+
+test("menu artwork preview and full decorated menu are sent in one text message", async () => {
+  const { commands } = await loadCommands(path.resolve("commands"));
+  const menuCommand = commands.find(command => command.name === "menu");
+  const sent = [];
+  const ctx = {
+    config: { ...config, imageUrl: "https://example.com/bot-menu.jpg", botUrl: "https://example.com" },
+    theme,
+    commands,
+    send: async payload => sent.push({ type: "send", payload }),
+    reply: async payload => sent.push({ type: "reply", payload })
+  };
+
+  await menuCommand.run(ctx);
+  assert.equal(sent.length, 1, "menu must be delivered in exactly one WhatsApp message");
+  assert.equal(sent[0].type, "send");
+  assert.equal(sent[0].payload.text, buildMenu({ commands, config: ctx.config, theme }));
+  const preview = sent[0].payload.contextInfo.externalAdReply;
+  assert.equal(preview.thumbnailUrl, ctx.config.imageUrl);
+  assert.equal(preview.sourceUrl, ctx.config.botUrl);
+  assert.equal(preview.renderLargerThumbnail, true);
+  for (const section of theme.sections) assert.ok(sent[0].payload.text.includes(section.title));
 });
