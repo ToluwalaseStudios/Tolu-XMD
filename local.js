@@ -122,7 +122,10 @@ export async function runLocalTerminal(options = {}) {
     console.log("The runtime is ready. Available commands are loaded.");
   });
   runtime.on("reconnecting", info => {
-    console.warn("WhatsApp connection closed. Reconnecting in " + info.delayMs + " ms...");
+    console.warn(
+      "WhatsApp connection closed. Reconnecting in " + info.delayMs + " ms. Reason: " +
+      String(info.error || "not provided").slice(0, 220)
+    );
   });
   runtime.on("loggedOut", () => {
     console.error("WhatsApp reported that the saved session is logged out. Preserve the auth folder for diagnosis; do not delete its files.");
