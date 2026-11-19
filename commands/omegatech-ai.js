@@ -72,11 +72,15 @@ async function sendImagePayload(ctx, title, prompt, payload) {
 }
 
 async function runFreegen(ctx) {
-  const prompt = promptFrom(ctx, "describe the image you want");
+  const raw = promptFrom(ctx, "describe the image you want | optional ratio");
+  const [promptPart, ratioPart] = raw.split("|");
+  const prompt = String(promptPart || "").trim();
+  if (!prompt) throw new Error("Enter an image description.");
+  const ratio = validateRatio(ratioPart || "1:1", "1:1");
   const url = new URL(API + "/ai/Freegen");
   url.searchParams.set("action", "generate");
   url.searchParams.set("prompt", prompt);
-  url.searchParams.set("ratio", "1:1");
+  url.searchParams.set("ratio", ratio);
 
   let response;
   try {
@@ -143,19 +147,25 @@ async function runTextToVideo(ctx) {
   const soundText = String(soundPart || "true").trim().toLowerCase();
   if (!["true", "false"].includes(soundText)) throw new Error("Sound must be true or false.");
   await ctx.reply("🎬 Your text-to-video request has been submitted. Generation may take several minutes.");
-  const payload = await requestExternalJson(API + "/ai/Txt2video", {
-    action: "generate", prompt, ratio, sound: soundText
-  }, VIDEO_TIMEOUT_MS);
-  if (payload?.success === false || payload?.statusCode >= 400) {
-    throw new Error(String(payload?.message || payload?.error || "Text-to-video generation failed.").slice(0, 220));
-  }
-  const video = valueAt(payload, ["data.videoUrl", "videoUrl", "data.url", "url", "result.videoUrl"]);
-  if (!video) throw new Error("The video service finished without returning a video URL.");
-  const videoUrl = validateHttpsUrl(video, "generated video");
-  await ctx.reply({
-    video: { url: videoUrl },
-    caption: withPoweredFooter(unicodeBox("🎬 OMEGATECH TEXT-TO-VIDEO", "📝 Prompt: " + prompt.slice(0, 600), { footer: false }), 1000)
-  });
+  void (async () => {
+    try {
+      const payload = await requestExternalJson(API + "/ai/Txt2video", {
+        action: "generate", prompt, ratio, sound: soundText
+      }, VIDEO_TIMEOUT_MS);
+      if (payload?.success === false || payload?.statusCode >= 400) {
+        throw new Error(String(payload?.message || payload?.error || "Text-to-video generation failed.").slice(0, 220));
+      }
+      const video = valueAt(payload, ["data.videoUrl", "videoUrl", "data.url", "url", "result.videoUrl"]);
+      if (!video) throw new Error("The video service finished without returning a video URL.");
+      const videoUrl = validateHttpsUrl(video, "generated video");
+      await ctx.reply({
+        video: { url: videoUrl },
+        caption: withPoweredFooter(unicodeBox("🎬 OMEGATECH TEXT-TO-VIDEO", "📝 Prompt: " + prompt.slice(0, 600), { footer: false }), 1000)
+      });
+    } catch (error) {
+      await ctx.reply("❌ Text-to-video failed: " + String(error?.message || error).slice(0, 250));
+    }
+  })();
 }
 
 async function runAiVideo(ctx) {
@@ -166,17 +176,23 @@ async function runAiVideo(ctx) {
   const params = { prompt, timeout: 600 };
   if (imagePart && imagePart.trim()) params.imageUrl = validateHttpsUrl(imagePart.trim(), "source image");
   await ctx.reply("🎥 Your AI video request has been submitted. The provider may take up to 10 minutes.");
-  const payload = await requestExternalJson(API + "/ai/Ai-video", params, VIDEO_TIMEOUT_MS);
-  if (payload?.success === false || payload?.statusCode >= 400) {
-    throw new Error(String(payload?.message || payload?.error || "AI video generation failed.").slice(0, 220));
-  }
-  const video = valueAt(payload, ["videoUrl", "data.videoUrl", "result.videoUrl", "url"]);
-  if (!video) throw new Error("The video service finished without returning a video URL.");
-  const videoUrl = validateHttpsUrl(video, "generated video");
-  await ctx.reply({
-    video: { url: videoUrl },
-    caption: withPoweredFooter(unicodeBox("🎥 OMEGATECH AI VIDEO", "📝 Prompt: " + prompt.slice(0, 600), { footer: false }), 1000)
-  });
+  void (async () => {
+    try {
+      const payload = await requestExternalJson(API + "/ai/Ai-video", params, VIDEO_TIMEOUT_MS);
+      if (payload?.success === false || payload?.statusCode >= 400) {
+        throw new Error(String(payload?.message || payload?.error || "AI video generation failed.").slice(0, 220));
+      }
+      const video = valueAt(payload, ["videoUrl", "data.videoUrl", "result.videoUrl", "url"]);
+      if (!video) throw new Error("The video service finished without returning a video URL.");
+      const videoUrl = validateHttpsUrl(video, "generated video");
+      await ctx.reply({
+        video: { url: videoUrl },
+        caption: withPoweredFooter(unicodeBox("🎥 OMEGATECH AI VIDEO", "📝 Prompt: " + prompt.slice(0, 600), { footer: false }), 1000)
+      });
+    } catch (error) {
+      await ctx.reply("❌ AI video generation failed: " + String(error?.message || error).slice(0, 250));
+    }
+  })();
 }
 
 export default [
