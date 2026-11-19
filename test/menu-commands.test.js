@@ -82,3 +82,26 @@ test("menu command sends a text menu", async () => {
     assert.ok(textMessage.payload.includes(section.title));
   }
 });
+
+
+test("menu artwork and full menu are sent together as one image message", async () => {
+  const { commands } = await loadCommands(path.resolve("commands"));
+  const menuCommand = commands.find(command => command.name === "menu");
+  const sent = [];
+  const ctx = {
+    config: { ...config, imageUrl: "https://example.com/bot-menu.jpg" },
+    theme,
+    commands,
+    send: async payload => sent.push({ type: "media", payload }),
+    reply: async payload => sent.push({ type: "text", payload })
+  };
+
+  await menuCommand.run(ctx);
+  assert.equal(sent.length, 1, "menu should be delivered in one WhatsApp message");
+  assert.equal(sent[0].type, "media");
+  assert.equal(sent[0].payload.image.url, ctx.config.imageUrl);
+  for (const section of theme.sections) {
+    assert.ok(sent[0].payload.caption.includes(section.title));
+  }
+  assert.ok(sent[0].payload.caption.includes(config.prefix + "menu"));
+});
