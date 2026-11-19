@@ -8,7 +8,6 @@ import { stdin, stdout } from "node:process";
 import config from "./config/bot.config.js";
 import theme from "./config/theme.config.js";
 import { loadCommands } from "./handlers/command-loader.js";
-import { createWhatsAppRuntime } from "./lib/whatsapp-runtime.js";
 
 
 async function inspectSessionDirectory(directory) {
@@ -76,6 +75,9 @@ function isValidPhone(value) {
 }
 
 export async function runLocalTerminal(options = {}) {
+  // Apply the pinned Baileys receive-path fix before importing the WhatsApp socket.
+  await import("./scripts/patch-baileys-status-ack.js");
+  const { createWhatsAppRuntime } = await import("./lib/whatsapp-runtime.js");
   const { commands, lookup } = await loadCommands();
   const sessionDirectory = path.resolve(String(
     options.sessionDirectory ||
@@ -122,7 +124,10 @@ export async function runLocalTerminal(options = {}) {
     console.log("The runtime is ready. Available commands are loaded.");
   });
   runtime.on("reconnecting", info => {
-    console.warn("WhatsApp connection closed. Reconnecting in " + info.delayMs + " ms...");
+    console.warn(
+      "WhatsApp connection closed. Reconnecting in " + info.delayMs + " ms. Reason: " +
+      String(info.error || "not provided").slice(0, 220)
+    );
   });
   runtime.on("loggedOut", () => {
     console.error("WhatsApp reported that the saved session is logged out. Preserve the auth folder for diagnosis; do not delete its files.");
