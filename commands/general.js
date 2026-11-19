@@ -40,9 +40,9 @@ const commands = [
         try {
           await ctx.send({
             image: { url: ctx.config.imageUrl },
-            caption: "🤖 *𝕿𝖔𝖑𝖚𝖜𝖆𝖑𝖆𝖘𝖊♚ — WhatsApp Bot by Toluwalase Studios*\n" +
-              "⚡ Powered by Toluwalase Studios"
+            caption: menu
           });
+          return;
         } catch (error) {
           console.warn("Toluwalase-XMD menu artwork could not be sent; using the text menu:", error?.message || error);
         }
