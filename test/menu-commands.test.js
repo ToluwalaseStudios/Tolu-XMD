@@ -105,3 +105,13 @@ test("menu artwork and full menu are sent together as one image message", async 
   }
   assert.ok(sent[0].payload.caption.includes(config.prefix + "menu"));
 });
+
+
+test("compact menu stays within WhatsApp image-caption length", async () => {
+  const { commands } = await loadCommands(path.resolve("commands"));
+  const menu = buildMenu({ commands, config, theme, compact: true });
+  assert.ok(menu.length <= 1024, "menu caption must fit WhatsApp's 1024-character caption limit");
+  assert.ok(menu.includes("Prefix: " + config.prefix));
+  assert.ok(menu.includes("DOWNLOADS:"));
+  assert.ok(menu.includes("fetch"));
+});

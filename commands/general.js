@@ -35,7 +35,7 @@ const commands = [
     category: "General",
     description: "Show the branded Toluwalase-XMD menu and available command sections.",
     run: async ctx => {
-      const menu = buildMenu({ commands: ctx.commands, config: ctx.config, theme: ctx.theme });
+      const menu = buildMenu({ commands: ctx.commands, config: ctx.config, theme: ctx.theme, compact: true });
       if (ctx.config.imageUrl) {
         try {
           await ctx.send({
