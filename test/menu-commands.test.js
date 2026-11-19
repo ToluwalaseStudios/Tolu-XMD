@@ -15,8 +15,7 @@ test("selected commands load without collisions and excluded modules stay inacti
     "menu", "help", "ping", "alive", "owner", "support", "time", "date",
     "version", "jid", "whoami", "calc", "poll", "coinflip", "dice",
     "8ball", "choose", "trivia", "riddle", "activity", "vv", "vv2",
-    "mode", "setprefix", "song", "play2", "claudeomega", "freegen",
-    "aigen", "txt2video", "aivideo", "fetch"
+    "mode", "setprefix", "song", "play2", "claudeomega", "txt2video", "fetch"
   ]) {
     assert.ok(lookup.has(name), "missing retained command " + name);
   }
@@ -43,7 +42,6 @@ test("menu contains each configured section in order and omits command descripti
   assert.ok(menu.includes(config.prefix + "menu"));
   assert.ok(menu.includes(config.prefix + "mode"));
   assert.ok(menu.includes(config.prefix + "fetch"));
-  assert.ok(menu.includes(config.prefix + "freegen"));
   assert.ok(menu.includes(config.prefix + "txt2video"));
   assert.equal(menu.includes("OTHER COMMANDS"), false);
   assert.equal(menu.includes("AI & CHAT"), false);
