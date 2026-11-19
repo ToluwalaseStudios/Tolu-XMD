@@ -91,7 +91,18 @@ async function runFreegen(ctx) {
   } catch {
     throw new Error("Freegen could not be reached. Please try again.");
   }
-  if (!response.ok) throw new Error("Freegen returned HTTP " + response.status + ".");
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    let detail = "";
+    try {
+      const parsed = JSON.parse(body);
+      detail = parsed?.message || parsed?.error?.message || parsed?.error || parsed?.detail || "";
+    } catch {
+      detail = body.replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ").trim();
+    }
+    throw new Error("Freegen HTTP " + response.status +
+      (detail ? ": " + String(detail).slice(0, 240) : " (provider did not explain the failure)."));
+  }
   const type = String(response.headers.get("content-type") || "").split(";")[0].toLowerCase();
   if (type.includes("image/png") || type.includes("image/jpeg") || type.includes("image/webp")) {
     const buffer = Buffer.from(await response.arrayBuffer());
@@ -124,7 +135,16 @@ async function runAiGen(ctx) {
   const ratio = validateRatio(ratioPart || "1:1", "1:1");
   if (!prompt) throw new Error("Enter an image description before the optional settings.");
   if (model.length > 60 || !/^[a-z0-9_-]+$/.test(model)) throw new Error("Use a simple model/style name such as photorealistic.");
-  const payload = await requestExternalJson(API + "/ai/Ai-gen-image", { prompt, model, ratio }, 180000);
+  let payload;
+  try {
+    payload = await requestExternalJson(API + "/ai/Ai-gen-image", { prompt, model, ratio }, 180000);
+  } catch (error) {
+    const detail = String(error?.message || error);
+    if (/ajax nonce|nonce/i.test(detail)) {
+      throw new Error("OmegaTech's image endpoint rejected the request because its AJAX nonce is missing. This is a provider-side requirement; the bot cannot safely invent a nonce. The provider must expose a supported server-to-server request method.");
+    }
+    throw error;
+  }
   if (payload?.success === false || payload?.statusCode >= 400) {
     throw new Error(String(payload?.message || payload?.error || "AI image generation failed.").slice(0, 220));
   }
@@ -185,8 +205,42 @@ async function runAiVideo(ctx) {
       const video = valueAt(payload, ["videoUrl", "data.videoUrl", "result.videoUrl", "url"]);
       if (!video) throw new Error("The video service finished without returning a video URL.");
       const videoUrl = validateHttpsUrl(video, "generated video");
-      await ctx.reply({
-        video: { url: videoUrl },
+      let mediaResponse;
+      try {
+        mediaResponse = await fetch(videoUrl, {
+          headers: { accept: "video/mp4,video/webm,video/*;q=0.9,*/*;q=0.1" },
+          signal: AbortSignal.timeout(90000),
+          redirect: "follow"
+        });
+      } catch {
+        throw new Error("The provider returned a video link, but the actual file could not be downloaded.");
+      }
+      if (!mediaResponse.ok) {
+        throw new Error("The generated video link returned HTTP " + mediaResponse.status + ".");
+      }
+      const declaredSize = Number(mediaResponse.headers.get("content-length") || 0);
+      if (declaredSize > 64 * 1024 * 1024) {
+        throw new Error("The generated video exceeds the bot's 64 MB sending limit.");
+      }
+      const videoBuffer = Buffer.from(await mediaResponse.arrayBuffer());
+      if (!videoBuffer.length || videoBuffer.length > 64 * 1024 * 1024) {
+        throw new Error("The generated video is empty or exceeds the 64 MB sending limit.");
+      }
+      const contentType = String(mediaResponse.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+      const isMp4 = videoBuffer.length > 12 && videoBuffer.toString("ascii", 4, 8) === "ftyp";
+      const isWebm = videoBuffer.length >= 4 &&
+        videoBuffer[0] === 0x1a && videoBuffer[1] === 0x45 &&
+        videoBuffer[2] === 0xdf && videoBuffer[3] === 0xa3;
+      if (!isMp4 && !isWebm) {
+        throw new Error("OmegaTech returned a link, but its contents are not a valid MP4 or WebM video. No broken video was sent.");
+      }
+      if (contentType.includes("text/html") || contentType.includes("application/json")) {
+        throw new Error("OmegaTech returned a webpage/API response instead of a playable video.");
+      }
+      await ctx.send({
+        video: videoBuffer,
+        mimetype: isMp4 ? "video/mp4" : "video/webm",
+        fileName: isMp4 ? "omegatech-ai-video.mp4" : "omegatech-ai-video.webm",
         caption: withPoweredFooter(unicodeBox("🎥 OMEGATECH AI VIDEO", "📝 Prompt: " + prompt.slice(0, 600), { footer: false }), 1000)
       });
     } catch (error) {
