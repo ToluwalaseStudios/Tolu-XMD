@@ -93,7 +93,7 @@ const commands = [
   }),
   {
     name: "buildapp",
-    aliases: ["buildapp", "llamacode"],
+    aliases: ["llamacoder", "llamacode"],
     category: "AI Media",
     description: "Build a web app with Buildapp; use followup | instruction to refine the saved project.",
     run: async ctx => {
@@ -106,7 +106,7 @@ const commands = [
         if (!session?.sessionId) throw new Error("No app-building session is saved. Start with !buildapp describe your app.");
         const prompt = parts.slice(1).join("|").trim();
         if (!prompt) throw new Error("Add the change you want after followup |");
-        const payload = await requestExternalJson(API + "/ai/buildapp", { action, prompt, sessionId: session.sessionId }, 180000);
+        const payload = await requestExternalJson(API + "/ai/llamacoder", { action, prompt, sessionId: session.sessionId }, 180000);
         const answer = at(payload, ["data.message", "data.reply", "message", "reply", "data.result", "result"]) || JSON.stringify(payload.data || payload).slice(0, 2600);
         const sid = at(payload, ["data.sessionId", "sessionId"]) || session.sessionId;
         sessions.set(id, { sessionId: sid });
@@ -118,7 +118,7 @@ const commands = [
       if (!prompt) throw new Error("Describe the app you want to build.");
       if (!["low", "medium", "high"].includes(quality)) throw new Error("Quality must be low, medium or high.");
       await ctx.reply("🧑‍💻 Buildapp is building your app. This may take a few minutes...");
-      const payload = await requestExternalJson(API + "/ai/buildapp", { action: "create", prompt, quality }, 300000);
+      const payload = await requestExternalJson(API + "/ai/llamacoder", { action: "create", prompt, quality }, 300000);
       if (payload?.success === false || payload?.statusCode >= 400) throw new Error(String(payload?.message || payload?.error || "Buildapp failed.").slice(0, 200));
       const sid = at(payload, ["data.sessionId", "sessionId"]);
       if (sid) sessions.set(id, { sessionId: sid });
