@@ -52,6 +52,10 @@ test("menu contains each configured section in order and omits command descripti
   assert.ok(menu.includes(config.prefix + "mode"));
   assert.ok(menu.includes(config.prefix + "fetch"));
   assert.ok(menu.includes(config.prefix + "txt2video"));
+  for (const name of ["song", "play", "ytaudio", "ytvideo"]) {
+    assert.ok(menu.includes(config.prefix + name), "menu is missing !" + name);
+  }
+  assert.equal(menu.includes(config.prefix + "video"), false, "old !video entry must not appear");
   assert.equal(menu.includes("OTHER COMMANDS"), false);
   assert.equal(menu.includes("AI & CHAT"), false);
   assert.equal(menu.includes("AI MEDIA"), false);
