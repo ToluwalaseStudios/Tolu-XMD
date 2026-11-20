@@ -290,16 +290,16 @@ export function findYouTubeMediaUrls(payload, kind) {
 
     if (typeof value === "string") {
       const raw = value.trim();
-      if (/^https?:\\/\\//i.test(raw)) {
+      if (/^https?:\/\//i.test(raw)) {
         let parsed;
         try { parsed = new URL(raw); } catch { parsed = null; }
-        if (parsed && !/youtube\\.com\\/(watch|shorts)|youtu\\.be\\//i.test(raw)) {
+        if (parsed && !/youtube\.com\/(watch|shorts)|youtu\.be\//i.test(raw)) {
           const keyPath = path.join(".").toLowerCase();
           const filePath = parsed.pathname.toLowerCase();
           if (!/thumbnail|image|cover|artwork|avatar|channel|watchpage|youtubeurl|preview/i.test(keyPath) &&
-              !/\\.(jpg|jpeg|png|webp|gif|svg)(?:$|\\?)/i.test(filePath)) {
-            const audioExt = /\\.(mp3|m4a|aac|ogg|opus|wav|flac)(?:$|\\?)/i.test(filePath);
-            const videoExt = /\\.(mp4|m4v|mov|webm|mkv|3gp)(?:$|\\?)/i.test(filePath);
+              !/\.(jpg|jpeg|png|webp|gif|svg)(?:$|\?)/i.test(filePath)) {
+            const audioExt = /\.(mp3|m4a|aac|ogg|opus|wav|flac)(?:$|\?)/i.test(filePath);
+            const videoExt = /\.(mp4|m4v|mov|webm|mkv|3gp)(?:$|\?)/i.test(filePath);
             const context = keyPath;
             const typeScore = kind === "audio"
               ? (/audio|mp3|m4a|sound|stream/i.test(context) ? 0 : audioExt ? 1 : /download|file|media|url|link/i.test(context) ? 2 : 4)
@@ -362,7 +362,7 @@ async function sendYouTubeMediaCandidates(ctx, candidates, title, kind, track) {
 async function runYouTubeSearchMedia(ctx, kind) {
   const query = String(ctx.args || "").trim();
   if (!query) throw new Error("Usage: " + ctx.config.prefix + ctx.commandName + " search phrase");
-  if (/^https?:\\/\\//i.test(query)) {
+  if (/^https?:\/\//i.test(query)) {
     throw new Error("Use a search phrase with !" + ctx.commandName + "; use !ytvideo <YouTube URL> for a link.");
   }
   if (query.length > 180) throw new Error("Keep the search under 180 characters.");
@@ -377,7 +377,7 @@ async function runYouTubeSearchMedia(ctx, kind) {
 
   const videoUrl = "https://www.youtube.com/watch?v=" + track.videoId;
   const title = String(track.title || track.name || track.trackName || query)
-    .replace(/[\\r\\n*_~]/g, " ").slice(0, 140);
+    .replace(/[\r\n*_~]/g, " ").slice(0, 140);
   const providers = [
     {
       label: "YouTube downloader",
