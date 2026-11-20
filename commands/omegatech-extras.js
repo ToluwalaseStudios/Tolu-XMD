@@ -21,7 +21,7 @@ function getModelRows(payload) {
   return list.map(item => typeof item === "string" ? { id: item, name: item } : {
     id: String(item?.id || item?.model || item?.modelId || item?.name || ""),
     name: String(item?.name || item?.displayName || item?.id || item?.model || "")
-  }).filter(item => item.id && !/cohere\\/north-mini-code:free/i.test(item.id));
+  }).filter(item => item.id && !item.id.toLowerCase().includes("cohere/north-mini-code:free"));
 }
 
 function getText(payload) {
