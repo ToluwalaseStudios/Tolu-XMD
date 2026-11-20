@@ -1,59 +1,97 @@
 import {
+  extractApiText,
   requestExternalJson,
   unicodeBox,
   withPoweredFooter
 } from "../lib/api-client.js";
 
 const API = "https://api.omegatech.app/api";
+const SESSIONS = new Map();
+const DEFAULT_SYSTEM = [
+  "You are a helpful, accurate, age-appropriate general-purpose assistant.",
+  "Do not provide instructions, strategies, or practical guidance for obtaining, making, using, hiding, or benefiting from weapons, dangerous substances, gambling, or other dangerous activities.",
+  "For requests involving these topics, briefly decline and offer safe, factual alternatives.",
+  "Be clear when you are uncertain. Do not invent facts."
+].join(" ");
 
-function outputText(payload, limit = 3400) {
-  const value = payload?.data ?? payload?.result ?? payload;
-  let text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
-  if (!text || text === "{}") throw new Error("MovieBox returned an empty response.");
-  return text.length > limit ? text.slice(0, limit - 1) + "…" : text;
+function getText(payload) {
+  const paths = [
+    payload?.data?.reply, payload?.data?.response, payload?.data?.text,
+    payload?.reply, payload?.response, payload?.text, payload?.answer,
+    payload?.data?.choices?.[0]?.message?.content,
+    payload?.choices?.[0]?.message?.content
+  ];
+  const value = paths.find(item => typeof item === "string" && item.trim());
+  return value ? value.trim() : extractApiText(payload);
 }
 
-function parseMovieArgs(raw) {
-  const [actionRaw, ...rest] = String(raw || "").trim().split(/\s+/);
-  const action = String(actionRaw || "").toLowerCase();
-  if (!["home", "trending", "search", "detail", "play", "download"].includes(action)) {
-    throw new Error("Usage: " + "moviebox home | trending | search <title> | detail <subjectId> | play <subjectId> [season] [episode] | download <subjectId> [season] [episode]");
+async function runWormGPT(ctx) {
+  const raw = String(ctx.args || "").trim();
+  if (!raw) {
+    await ctx.reply(
+      "Usage: " + ctx.config.prefix + "wormgpt <your message>\n" +
+      ctx.config.prefix + "wormgpt models — list available models\n" +
+      ctx.config.prefix + "wormgpt reset — clear your conversation"
+    );
+    return;
   }
-  return { action, args: rest };
-}
 
-async function runMovieBox(ctx) {
-  const { action, args } = parseMovieArgs(ctx.args);
-  const params = { action };
-  if (action === "search") {
-    const keyword = args.join(" ").trim();
-    if (!keyword) throw new Error("Usage: " + ctx.config.prefix + "moviebox search <movie title>");
-    params.keyword = keyword;
-    params.page = 1;
-    params.perPage = 10;
-  } else if (action === "detail") {
-    if (!args[0]) throw new Error("Usage: " + ctx.config.prefix + "moviebox detail <subjectId>");
-    params.subjectId = args[0];
-  } else if (action === "play" || action === "download") {
-    if (!args[0]) throw new Error("Usage: " + ctx.config.prefix + "moviebox " + action + " <subjectId> [season] [episode]");
-    params.subjectId = args[0];
-    params.se = Number.isFinite(Number(args[1])) ? Number(args[1]) : 0;
-    params.ep = Number.isFinite(Number(args[2])) ? Number(args[2]) : 0;
-  } else if (action === "trending") {
-    params.page = 1;
-    params.perPage = 10;
+  const key = String(ctx.jid || "") + ":" + String(ctx.senderJid || "");
+  const [first, ...rest] = raw.split(/\s+/);
+  const action = first.toLowerCase();
+
+  if (action === "reset") {
+    SESSIONS.delete(key);
+    await ctx.reply("♻️ WormGPT conversation reset.");
+    return;
   }
-  const payload = await requestExternalJson(API + "/movie/MovieBox-pro", params, 90000);
+
+  if (action === "models") {
+    const payload = await requestExternalJson(API + "/ai/wormgpt", { action: "models" }, 45000);
+    const text = getText(payload);
+    await ctx.reply(withPoweredFooter(unicodeBox("🧠 WORMGPT · MODELS", text, { footer: false }), 3800));
+    return;
+  }
+
+  const prompt = action === "ask" || action === "chat" ? rest.join(" ").trim() : raw;
+  if (!prompt) throw new Error("Enter a message after the command.");
+  if (prompt.length > 2500) throw new Error("Keep your message under 2,500 characters.");
+
+  const sessionId = SESSIONS.get(key);
+  const payload = await requestExternalJson(API + "/ai/wormgpt", {
+    action: "chat",
+    message: prompt,
+    prompt,
+    sessionId: sessionId || undefined,
+    system: DEFAULT_SYSTEM,
+    systemPrompt: DEFAULT_SYSTEM,
+    system_prompt: DEFAULT_SYSTEM,
+    noSystem: false,
+    temperature: 0.7,
+    max_tokens: 1400
+  }, 90000);
+
+  if (payload?.success === false || payload?.statusCode >= 400) {
+    throw new Error(String(payload?.message || payload?.error || "WormGPT request failed.").slice(0, 220));
+  }
+
+  const nextSession = [
+    payload?.data?.sessionId, payload?.sessionId,
+    payload?.data?.chatId, payload?.chatId
+  ].find(value => typeof value === "string" && value.trim());
+  if (nextSession) SESSIONS.set(key, nextSession);
+
+  const answer = getText(payload);
   await ctx.reply(withPoweredFooter(
-    unicodeBox("🎬 MOVIEBOX PRO · " + action.toUpperCase(), outputText(payload), { footer: false }),
+    unicodeBox("🧠 WORMGPT", answer.slice(0, 3300), { footer: false }),
     3800
   ));
 }
 
 export default {
-  name: "moviebox",
-  aliases: ["mbox"],
-  category: "Downloads",
-  description: "Search movies, view details and request MovieBox playback/download information.",
-  run: runMovieBox
+  name: "wormgpt",
+  aliases: ["worm"],
+  category: "AI",
+  description: "Chat with OmegaTech WormGPT with conversation memory.",
+  run: runWormGPT
 };
