@@ -272,7 +272,7 @@ function findYouTubeMusicTrack(payload) {
 
 function requireAuthorisedInput(ctx) {
   const raw = String(ctx.args || "").trim();
-  const match = raw.match(/^--authorised\\s+(.+)$/i);
+  const match = raw.match(/^--authorised\s+(.+)$/i);
   if (!match || !match[1].trim()) {
     throw new Error(
       "Usage: " + ctx.config.prefix + ctx.commandName +
@@ -290,14 +290,14 @@ function findYouTubeMediaUrl(payload, kind) {
     seen.add(value);
     if (Array.isArray(value)) { queue.push(...value); continue; }
     for (const [key, child] of Object.entries(value)) {
-      if (typeof child === "string" && /^https:\\/\\//i.test(child)) {
+      if (typeof child === "string" && /^https:\/\//i.test(child)) {
         const name = key.toLowerCase();
         if (/thumbnail|image|cover|artwork|channel|watchpage|youtubeurl/i.test(name)) continue;
         const path = (() => { try { return new URL(child).pathname.toLowerCase(); } catch { return ""; } })();
-        if (/youtube\\.com\\/(watch|shorts)|youtu\\.be\\//i.test(child)) continue;
+        if (/youtube\.com\/(watch|shorts)|youtu\.be\//i.test(child)) continue;
         const preferred = kind === "video"
-          ? /mp4|video|download|file/i.test(name) || /\\.mp4$/i.test(path)
-          : /mp3|audio|download|file/i.test(name) || /\\.(mp3|m4a|aac|ogg|opus|wav)$/i.test(path);
+          ? /mp4|video|download|file/i.test(name) || /\.mp4$/i.test(path)
+          : /mp3|audio|download|file/i.test(name) || /\.(mp3|m4a|aac|ogg|opus|wav)$/i.test(path);
         if (preferred) candidates.push({ url: child, score:
           (kind === "video" ? /mp4|video/i : /mp3|audio/i).test(name) ? 0 : 1 });
       } else if (child && typeof child === "object") queue.push(child);
@@ -313,7 +313,7 @@ function findYouTubeMediaUrl(payload, kind) {
 
 async function runYouTubeSearchMedia(ctx, kind) {
   const query = requireAuthorisedInput(ctx);
-  if (/^https?:\\/\\//i.test(query)) {
+  if (/^https?:\/\//i.test(query)) {
     throw new Error("Use a search phrase with !" + ctx.commandName + "; use !ytvideo --authorised <YouTube URL> for a link.");
   }
   if (query.length > 180) throw new Error("Keep the search under 180 characters.");
@@ -328,7 +328,7 @@ async function runYouTubeSearchMedia(ctx, kind) {
   const mediaUrl = findYouTubeMediaUrl(download, kind);
   if (!mediaUrl) throw new Error("The provider did not return a direct " + kind + " file URL.");
   const title = String(track.title || track.name || track.trackName || query)
-    .replace(/[\\r\\n*_~]/g, " ").slice(0, 140);
+    .replace(/[\r\n*_~]/g, " ").slice(0, 140);
   await sendDownloadedMedia(ctx, mediaUrl, title, {
     type: kind === "video" ? "video/mp4" : "audio/mpeg",
     extension: kind === "video" ? "mp4" : "mp3",
