@@ -45,7 +45,7 @@ async function runClaude(ctx) {
   const prompt = promptFrom(ctx, "your question or message", 3500);
   const payload = await requestExternalJson(API + "/ai/Claude", { text: prompt }, 90000);
   const answer = valueAt(payload, ["result", "data.result", "response", "answer", "reply"]) || extractApiText(payload);
-  await ctx.reply(withPoweredFooter(unicodeBox("☁️ ONLY CLOUD", answer.slice(0, 3300), { footer: false }), 3800));
+  await ctx.reply(withPoweredFooter(unicodeBox("🧠 CLAUDE", answer.slice(0, 3300), { footer: false }), 3800));
 }
 
 async function runTextToVideo(ctx) {
@@ -80,10 +80,10 @@ async function runTextToVideo(ctx) {
 
 export default [
   {
-    name: "onlycloud",
+    name: "claude",
     aliases: [],
     category: "AI Media",
-    description: "Chat with Only Cloud AI.",
+    description: "Chat with Claude AI through OmegaTech.",
     run: runClaude
   },
   {
