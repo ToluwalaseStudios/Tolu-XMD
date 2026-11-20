@@ -15,7 +15,7 @@ test("selected commands load without collisions and excluded modules stay inacti
     "menu", "help", "ping", "alive", "owner", "support", "time", "date",
     "version", "jid", "whoami", "calc", "poll", "coinflip", "dice",
     "8ball", "choose", "trivia", "riddle", "activity", "vv", "vv2",
-    "mode", "setprefix", "song", "play2", "play", "pone", "claude", "deepai", "chatgpt", "gemini", "llamacoder", "wormgpt", "moviebox", "txt2video", "fetch", "clideo", "gemtts", "woman1", "woman2", "woman3", "man1", "man2", "man3", "captts"
+    "mode", "setprefix", "play", "upload", "claude", "deepai", "chatgpt", "gemini", "buildapp", "wormgpt", "moviebox", "txt2video", "fetch", "clideo", "gemtts", "woman1", "woman2", "woman3", "man1", "man2", "man3", "captts"
   ]) {
     assert.ok(lookup.has(name), "missing retained command " + name);
   }
