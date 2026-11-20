@@ -21,7 +21,7 @@ function getModelRows(payload) {
   return list.map(item => typeof item === "string" ? { id: item, name: item } : {
     id: String(item?.id || item?.model || item?.modelId || item?.name || ""),
     name: String(item?.name || item?.displayName || item?.id || item?.model || "")
-  }).filter(item => item.id);
+  }).filter(item => item.id && !/cohere\\/north-mini-code:free/i.test(item.id));
 }
 
 function getText(payload) {
@@ -69,13 +69,20 @@ async function runWormGPT(ctx) {
 
   let selectedModel = "";
   let promptRaw = raw;
+  let availableModels = MODEL_CACHE.get(key);
+  if (!availableModels?.length) {
+    const catalogue = await requestExternalJson(API + "/gateway/models", {}, 45000);
+    availableModels = getModelRows(catalogue);
+    if (availableModels.length) MODEL_CACHE.set(key, availableModels);
+  }
+  if (!availableModels?.length) {
+    throw new Error("WormGPT could not load its current model catalogue. Run !wormgpt models and try again.");
+  }
   const numbered = raw.match(/^(\d+)\s*\|\s*([\s\S]+)$/);
   if (numbered) {
-    const models = MODEL_CACHE.get(key);
-    if (!models) throw new Error("First run " + ctx.config.prefix + "wormgpt models, then choose a model number.");
     const index = Number(numbered[1]) - 1;
-    if (!models[index]) throw new Error("That model number is not in the list. Run wormgpt models again.");
-    selectedModel = models[index].id;
+    if (!availableModels[index]) throw new Error("That model number is not in the list. Run wormgpt models again.");
+    selectedModel = availableModels[index].id;
     promptRaw = numbered[2].trim();
   }
   const prompt = action === "ask" || action === "chat" ? rest.join(" ").trim() : promptRaw;
@@ -94,7 +101,7 @@ async function runWormGPT(ctx) {
     noSystem: false,
     temperature: 0.7,
     max_tokens: 1400,
-    model: selectedModel || MODEL_CACHE.get(key)?.[0]?.id
+    model: selectedModel || availableModels[0].id
   }, 90000);
 
   if (payload?.success === false || payload?.statusCode >= 400) {
