@@ -113,49 +113,35 @@ export default [
     endpoint: "/ai/pollination2",
     params: prompt => ({ action: "generate", prompt, model: "flux", format: "jpg", safe: "true" })
   }),
-  createImageCommand({
-    name: "pollination",
-    title: "🎨 POLLINATION AI",
-    endpoint: "/ai/polination",
-    params: prompt => ({ action: "generate", prompt, shape: "square" })
-  }),
   createTtsCommand({
-    name: "tts",
-    title: "TEXT TO SPEECH",
+    name: "clideo",
+    title: "CLIDEO NATURAL VOICE",
     endpoint: "/ai/clideo",
     params: (text, options) => ({ action: "generate", text, mood: options[0] || "NORMAL" }),
     audioPaths: ["data.previewUrl", "previewUrl"],
     optionDefaults: ["NORMAL"]
   }),
   createTtsCommand({
-    name: "tts2",
-    title: "GEMINI TEXT TO SPEECH",
+    name: "gemtts",
+    title: "GEMINI VOICE",
     endpoint: "/ai/Gemini-tts",
     params: text => ({ text }),
     audioPaths: ["result", "data.result", "audio"]
   }),
-  createTtsCommand({
-    name: "tts3",
-    title: "TEXT2SPEECH V3",
+  ...["woman1", "woman2", "woman3", "man1", "man2", "man3"].map(voice => createTtsCommand({
+    name: voice,
+    title: "LIVE3D " + voice.toUpperCase() + " VOICE",
     endpoint: "/ai/text2speech-v3",
-    params: (text, options) => ({ text, voice: options[0] || "woman1", language: options[1] || "English" }),
-    audioPaths: ["audio", "data.audio", "result"],
-    optionDefaults: ["woman1", "English"]
-  }),
+    params: text => ({ text, voice, language: "English" }),
+    audioPaths: ["audio", "data.audio", "result"]
+  })),
   createTtsCommand({
-    name: "tts4",
-    title: "TEXT TO SPEECH V2",
+    name: "captts",
+    title: "CAPCUT VOICE",
     endpoint: "/ai/text-to-speech2",
     params: (text, options) => ({ text, voice: options[0] || "NORMAL MALE" }),
     audioPaths: ["result", "data.result", "audio"],
     optionDefaults: ["NORMAL MALE"]
-  }),
-  createTtsCommand({
-    name: "tts5",
-    title: "MULTI TEXT TO SPEECH",
-    endpoint: "/ai/Multi-Text-to-speech",
-    params: text => ({ action: "tts", text }),
-    audioPaths: ["data.audio_url", "audio_url", "result"]
   }),
   {
     name: "songgen",
