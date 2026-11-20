@@ -5,11 +5,11 @@ The public release contains **184 commands across 18 menu sections**.
 | Menu section | Command names |
 | --- | --- |
 | General | menu, help, ping, alive, owner, support, time, date, version, jid, whoami |
-| AI Chat | claude |
+| AI Chat | claude, deepai, chatgpt, gemini, llamacoder |
 | AI Media | txt2video, flux, clideo, gemtts, woman1, woman2, woman3, man1, man2, man3, captts, songgen, aimusic |
 | News Desk | news, aljazeera, cnn, bbc, guardian, npr, nytimes, foxnews, skynews, dw, punchnews |
 | Group Tools | welcome, goodbye, groupinfo, groupjid, getgcpp, groupcount, groupstats, admins, tagall, link, groupname, groupdesc, close, open |
-| Downloads | aio, fb, twitter, instagram, ytmp4, tiktok, play2, ytsearch, video |
+| Downloads | aio, fb, twitter, instagram, ytmp4, tiktok, song, play, play2, ytsearch, pone, video, fetch |
 | Fun Games | calc, poll, coinflip, dice, 8ball, choose, trivia, riddle, activity, pokemon |
 | Fun Mix | joke, dadjoke, progjoke, chuck, fact2, catfact, dog, cat, fox, advice, quote2, meme, numfact, history, wiki, nasa |
 | Anime Info | animemenu, anime, manga, character, charpic, staff, studio, recommend, episodes, animechars, trailer, pictures, streaming, review, genres, genre, topanime, topmanga, popular, favorite, airing, upcoming, trending, season, topchars, schedule, nextep |

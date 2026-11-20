@@ -7,6 +7,7 @@ import {
 
 const API = "https://api.omegatech.app/api";
 const VIDEO_TIMEOUT_MS = 610000;
+const CLAUDE_SESSIONS = new Map();
 
 function validateRatio(value) {
   const ratio = String(value || "auto").trim().toLowerCase();
@@ -42,9 +43,20 @@ function valueAt(payload, paths) {
 }
 
 async function runClaude(ctx) {
-  const prompt = promptFrom(ctx, "your question or message", 3500);
-  const payload = await requestExternalJson(API + "/ai/Claude", { text: prompt }, 90000);
-  const answer = valueAt(payload, ["result", "data.result", "response", "answer", "reply"]) || extractApiText(payload);
+  const prompt = promptFrom(ctx, "your question or message (or reset)", 2500);
+  const key = String(ctx.jid || "") + ":" + String(ctx.senderJid || "");
+  if (prompt.toLowerCase() === "reset") {
+    CLAUDE_SESSIONS.delete(key);
+    await ctx.reply("♻️ Claude conversation reset.");
+    return;
+  }
+  const previous = CLAUDE_SESSIONS.get(key) || "";
+  const payload = await requestExternalJson(API + "/ai/Chatbot", {
+    action: "chat", message: prompt, sessionId: previous || undefined, needSearch: false
+  }, 90000);
+  const answer = valueAt(payload, ["data.reply", "reply", "data.response", "response", "answer"]) || extractApiText(payload);
+  const sessionId = valueAt(payload, ["data.sessionId", "sessionId"]);
+  if (sessionId) CLAUDE_SESSIONS.set(key, sessionId);
   await ctx.reply(withPoweredFooter(unicodeBox("🧠 CLAUDE", answer.slice(0, 3300), { footer: false }), 3800));
 }
 
