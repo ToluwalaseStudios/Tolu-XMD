@@ -78,13 +78,6 @@ const commands = [
     }
   },
   sessionCommand({
-    name: "claude",
-    label: "Claude",
-    endpoint: "/ai/Chatbot",
-    fields: (message, old) => ({ action: "chat", message, sessionId: old.sessionId || undefined, needSearch: false }),
-    responsePaths: ["data.reply", "reply", "data.response", "response", "answer"]
-  }),
-  sessionCommand({
     name: "chatgpt",
     label: "ChatGPT",
     endpoint: "/ai/Chatgpt-v2",
