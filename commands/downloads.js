@@ -171,6 +171,12 @@ async function sendDownloadedMedia(ctx, url, title, item = {}, fallbackKind = "d
   ].filter(Boolean).join("\n"), { footer: true });
 
   const media = await fetchMediaFile(url, fallbackKind);
+  if (fallbackKind === "video" && media.kind !== "video") {
+    throw new Error("The provider returned audio instead of a video. No incorrect attachment was sent.");
+  }
+  if (fallbackKind === "audio" && media.kind !== "audio") {
+    throw new Error("The provider returned video or another file instead of audio. No incorrect attachment was sent.");
+  }
   const fileName = safeFileName(cleanTitle, "Toluwalase-XMD-download") + "." + media.extension;
 
   if (media.kind === "video") {
@@ -517,7 +523,7 @@ async function runYouTubeVideo(ctx) {
     type: "video/mp4",
     extension: "mp4",
     quality: data.quality || "available"
-  });
+  }, "video");
 }
 
 export default [
