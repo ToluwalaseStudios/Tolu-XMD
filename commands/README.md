@@ -5,7 +5,7 @@ The public release contains **184 commands across 18 menu sections**.
 | Menu section | Command names |
 | --- | --- |
 | General | menu, help, ping, alive, owner, support, time, date, version, jid, whoami |
-| AI Chat | claude, deepai, chatgpt, gemini, llamacoder, wormgpt |
+| AI Chat | claude, deepai, chatgpt, gemini, llamacoder |
 | AI Media | txt2video, flux, clideo, gemtts, woman1, woman2, woman3, man1, man2, man3, captts, songgen, aimusic |
 | News Desk | news, aljazeera, cnn, bbc, guardian, npr, nytimes, foxnews, skynews, dw, punchnews |
 | Group Tools | welcome, goodbye, groupinfo, groupjid, getgcpp, groupcount, groupstats, admins, tagall, link, groupname, groupdesc, close, open |
