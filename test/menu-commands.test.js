@@ -15,12 +15,15 @@ test("selected commands load without collisions and excluded modules stay inacti
     "menu", "help", "ping", "alive", "owner", "support", "time", "date",
     "version", "jid", "whoami", "calc", "poll", "coinflip", "dice",
     "8ball", "choose", "trivia", "riddle", "activity", "vv", "vv2",
-    "mode", "setprefix", "song", "play2", "claudeomega", "txt2video", "fetch"
+    "mode", "setprefix", "song", "play2", "onlycloud", "txt2video", "fetch", "clideo", "gemtts", "woman1", "woman2", "woman3", "man1", "man2", "man3", "captts"
   ]) {
     assert.ok(lookup.has(name), "missing retained command " + name);
   }
 
   for (const name of [
+    "ai", "ask", "gpt", "chatgpt", "mathgpt", "deepseek", "translate", "summarize",
+    "fable5", "qwen", "deepseek2", "qwenweb", "study", "code", "ytbrief", "ytsummary",
+    "claudeomega", "pollination", "tts5",
     "anime", "animemenu", "manga", "character", "randomanime",
     "angry", "baka", "blowkiss", "cuddle", "dance", "hug", "kiss",
     "pokemon"
@@ -84,29 +87,6 @@ test("menu command sends a text menu", async () => {
 });
 
 
-test("menu artwork and full menu are sent together as one image message", async () => {
-  const { commands } = await loadCommands(path.resolve("commands"));
-  const menuCommand = commands.find(command => command.name === "menu");
-  const sent = [];
-  const ctx = {
-    config: { ...config, imageUrl: "https://example.com/bot-menu.jpg" },
-    theme,
-    commands,
-    send: async payload => sent.push({ type: "media", payload }),
-    reply: async payload => sent.push({ type: "text", payload })
-  };
-
-  await menuCommand.run(ctx);
-  assert.equal(sent.length, 1, "menu should be delivered in one WhatsApp message");
-  assert.equal(sent[0].type, "media");
-  assert.equal(sent[0].payload.image.url, ctx.config.imageUrl);
-  for (const section of theme.sections) {
-    assert.ok(sent[0].payload.caption.includes(section.title));
-  }
-  assert.ok(sent[0].payload.caption.includes(config.prefix + "menu"));
-});
-
-
 test("full menu retains its original decorated multi-section layout", async () => {
   const { commands } = await loadCommands(path.resolve("commands"));
   const menu = buildMenu({ commands, config, theme });
@@ -115,7 +95,7 @@ test("full menu retains its original decorated multi-section layout", async () =
   assert.ok(menu.includes("┃ ◈ " + config.prefix + "menu"));
   for (const section of theme.sections) assert.ok(menu.includes(section.title));
   assert.ok(menu.includes(theme.footer));
-  assert.ok(menu.split("\\n").length > 30);
+  assert.ok(menu.split("\n").length > 30);
 });
 
 test("menu artwork preview and full decorated menu are sent in one text message", async () => {
