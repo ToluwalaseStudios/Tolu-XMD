@@ -8,6 +8,23 @@ import {
 const API = "https://api.omegatech.app/api";
 const VIDEO_TIMEOUT_MS = 610000;
 
+function validateRatio(value) {
+  const ratio = String(value || "auto").trim().toLowerCase();
+  const allowed = new Set(["auto", "1:1", "16:9", "9:16", "4:3", "3:4"]);
+  if (!allowed.has(ratio)) throw new Error("Unsupported ratio. Use auto, 1:1, 16:9, 9:16, 4:3 or 3:4.");
+  return ratio;
+}
+
+function validateHttpsUrl(value, label) {
+  let url;
+  try { url = new URL(String(value || "").trim()); }
+  catch { throw new Error("The " + label + " service returned an invalid URL."); }
+  if (url.protocol !== "https:" || url.username || url.password) {
+    throw new Error("The " + label + " service returned an unsupported URL.");
+  }
+  return url.toString();
+}
+
 function promptFrom(ctx, example, max = 1800) {
   const value = String(ctx.args || "").trim();
   if (!value) throw new Error("Usage: " + ctx.config.prefix + ctx.commandName + " " + example);
@@ -28,7 +45,7 @@ async function runClaude(ctx) {
   const prompt = promptFrom(ctx, "your question or message", 3500);
   const payload = await requestExternalJson(API + "/ai/Claude", { text: prompt }, 90000);
   const answer = valueAt(payload, ["result", "data.result", "response", "answer", "reply"]) || extractApiText(payload);
-  await ctx.reply(withPoweredFooter(unicodeBox("🧠 OMEGATECH CLAUDE AI", answer.slice(0, 3300), { footer: false }), 3800));
+  await ctx.reply(withPoweredFooter(unicodeBox("☁️ ONLY CLOUD", answer.slice(0, 3300), { footer: false }), 3800));
 }
 
 async function runTextToVideo(ctx) {
@@ -63,10 +80,10 @@ async function runTextToVideo(ctx) {
 
 export default [
   {
-    name: "claudeomega",
-    aliases: ["omegaclaude"],
+    name: "onlycloud",
+    aliases: [],
     category: "AI Media",
-    description: "Chat with the OmegaTech Claude AI endpoint.",
+    description: "Chat with Only Cloud AI.",
     run: runClaude
   },
   {
