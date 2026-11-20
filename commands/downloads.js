@@ -490,8 +490,8 @@ export default [
     run: async ctx => runAio(ctx, requirePlatformUrl(ctx, "TikTok", PLATFORM_HOSTS.tiktok), "TIKTOK")
   },
   {
-    name: "song",
-    aliases: ["play2", "ytsearch"],
+    name: "play",
+    aliases: ["song", "play2", "ytsearch", "musicsearch"],
     category: "Downloads",
     description: "Search a song and send the full audio file to WhatsApp.",
     run: runSong

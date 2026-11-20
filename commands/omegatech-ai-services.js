@@ -87,39 +87,39 @@ const commands = [
   sessionCommand({
     name: "gemini",
     label: "Gemini",
-    endpoint: "/ai/Gemini",
-    fields: (message, old) => ({ action: "chat", message, sessionId: old.sessionId || undefined, chatId: old.chatId || undefined }),
+    endpoint: "/ai/Gemini-premuim",
+    fields: (message, old) => ({ message, model: "gemini-flash", language: "en", sessionId: old.sessionId || undefined }),
     responsePaths: ["data.response", "data.reply", "response", "reply", "answer"]
   }),
   {
-    name: "llamacoder",
-    aliases: ["llamacode"],
+    name: "buildapp",
+    aliases: ["llamacoder", "llamacode"],
     category: "AI Media",
-    description: "Build a web app with LlamaCoder; use followup | instruction to refine the saved project.",
+    description: "Build a web app with Buildapp; use followup | instruction to refine the saved project.",
     run: async ctx => {
       const raw = textArg(ctx, "build description | quality (low/medium/high), or followup | instruction", 1800);
       const parts = raw.split("|");
       const action = parts[0].trim().toLowerCase() === "followup" ? "followup" : "create";
-      const id = key(ctx, "llamacoder");
+      const id = key(ctx, "buildapp");
       if (action === "followup") {
         const session = sessions.get(id);
-        if (!session?.sessionId) throw new Error("No app-building session is saved. Start with !llamacoder describe your app.");
+        if (!session?.sessionId) throw new Error("No app-building session is saved. Start with !buildapp describe your app.");
         const prompt = parts.slice(1).join("|").trim();
         if (!prompt) throw new Error("Add the change you want after followup |");
         const payload = await requestExternalJson(API + "/ai/llamacoder", { action, prompt, sessionId: session.sessionId }, 180000);
         const answer = at(payload, ["data.message", "data.reply", "message", "reply", "data.result", "result"]) || JSON.stringify(payload.data || payload).slice(0, 2600);
         const sid = at(payload, ["data.sessionId", "sessionId"]) || session.sessionId;
         sessions.set(id, { sessionId: sid });
-        await reply(ctx, "🧑‍💻 LLAMACODER UPDATE", answer);
+        await reply(ctx, "🧑‍💻 BUILDAPP UPDATE", answer);
         return;
       }
       const prompt = parts[0].trim();
       const quality = (parts[1] || "low").trim().toLowerCase();
       if (!prompt) throw new Error("Describe the app you want to build.");
       if (!["low", "medium", "high"].includes(quality)) throw new Error("Quality must be low, medium or high.");
-      await ctx.reply("🧑‍💻 LlamaCoder is building your app. This may take a few minutes...");
+      await ctx.reply("🧑‍💻 Buildapp is building your app. This may take a few minutes...");
       const payload = await requestExternalJson(API + "/ai/llamacoder", { action: "create", prompt, quality }, 300000);
-      if (payload?.success === false || payload?.statusCode >= 400) throw new Error(String(payload?.message || payload?.error || "LlamaCoder failed.").slice(0, 200));
+      if (payload?.success === false || payload?.statusCode >= 400) throw new Error(String(payload?.message || payload?.error || "Buildapp failed.").slice(0, 200));
       const sid = at(payload, ["data.sessionId", "sessionId"]);
       if (sid) sessions.set(id, { sessionId: sid });
       const files = payload?.data?.files || payload?.files || [];
@@ -131,9 +131,9 @@ const commands = [
         at(payload, ["data.message", "message", "data.reply", "reply"]),
         "Files generated: " + String(payload?.data?.filesCount ?? files.length ?? 0),
         ...links,
-        sid ? "Session saved. Continue with: " + ctx.config.prefix + "llamacoder followup | your changes" : ""
+        sid ? "Session saved. Continue with: " + ctx.config.prefix + "buildapp followup | your changes" : ""
       ].filter(Boolean).join("\n");
-      await reply(ctx, "🧑‍💻 LLAMACODER · APP BUILDER", summary || JSON.stringify(payload.data || payload).slice(0, 2500));
+      await reply(ctx, "🧑‍💻 BUILDAPP · APP BUILDER", summary || JSON.stringify(payload.data || payload).slice(0, 2500));
     }
   }
 ];

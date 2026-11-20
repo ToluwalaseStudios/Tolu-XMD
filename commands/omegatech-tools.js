@@ -21,7 +21,7 @@ async function runPone(ctx) {
     if (!target) throw new Error("I couldn't find the replied-to media. Reply to the file again and retry.");
   }
   const media = mediaNode(target);
-  if (!media) throw new Error("Attach a file to this command or reply to an image, video, audio or document with !pone.");
+  if (!media) throw new Error("Attach a file to this command or reply to an image, video, audio or document with !upload.");
   let bytes;
   try {
     bytes = await downloadMediaMessage(target, "buffer", {}, {
@@ -32,7 +32,7 @@ async function runPone(ctx) {
   }
   const buffer = Buffer.from(bytes);
   if (!buffer.length) throw new Error("The attachment is empty.");
-  if (buffer.length > 45 * 1024 * 1024) throw new Error("Pone uploader is limited to 45 MB per file.");
+  if (buffer.length > 45 * 1024 * 1024) throw new Error("File uploader is limited to 45 MB per file.");
   const node = media.value || {};
   const mime = String(node.mimetype || "application/octet-stream");
   const original = String(node.fileName || node.file_name || (media.key + "-" + Date.now()));
@@ -48,11 +48,11 @@ async function runPone(ctx) {
       signal: AbortSignal.timeout(120000)
     });
   } catch {
-    throw new Error("Could not reach Pone uploader. Try again later.");
+    throw new Error("Could not reach File uploader. Try again later.");
   }
   let payload;
   try { payload = await response.json(); }
-  catch { throw new Error("Pone uploader returned an unreadable response."); }
+  catch { throw new Error("File uploader returned an unreadable response."); }
   if (!response.ok || payload?.success === false || payload?.statusCode >= 400) {
     throw new Error(String(payload?.message || payload?.error || "Pone upload failed.").slice(0, 200));
   }
@@ -63,7 +63,7 @@ async function runPone(ctx) {
   const deleteUrl = String(file?.deleteUrl || file?.delete_url || "").trim();
   const lines = ["📄 File: " + filename, "🔗 URL: " + url];
   if (deleteUrl.startsWith("https://")) lines.push("🗑 Delete link (keep private): " + deleteUrl);
-  await ctx.reply(withPoweredFooter(unicodeBox("☁️ PONE FILE UPLOADER", lines.join("\n"), { footer: false }), 2500));
+  await ctx.reply(withPoweredFooter(unicodeBox("☁️ FILE UPLOADER", lines.join("\n"), { footer: false }), 2500));
 }
 
 function findTrack(payload) {
@@ -97,17 +97,10 @@ async function runMusicSearch(ctx) {
 
 export default [
   {
-    name: "pone",
+    name: "upload",
     aliases: ["uploadfile"],
     category: "Downloads",
     description: "Upload an attached or replied-to file to Pone and return its public link.",
     run: runPone
-  },
-  {
-    name: "play",
-    aliases: ["musicsearch"],
-    category: "Downloads",
-    description: "Search YouTube Music and return the official listening link.",
-    run: runMusicSearch
   }
 ];
