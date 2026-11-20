@@ -61,6 +61,7 @@ const commands = [
   },
   {
     name: "help",
+    aliases: ["commands", "cmds"],
     category: "General",
     description: "List registered commands and their descriptions.",
     run: async ctx => {
