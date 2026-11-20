@@ -82,6 +82,63 @@ function mediaKind(item, extension, fallbackKind = "document") {
   return fallbackKind;
 }
 
+export function readMp4DurationSeconds(bytes) {
+  if (!Buffer.isBuffer(bytes) || bytes.length < 16) return 0;
+  const readBox = (start, limit) => {
+    if (start + 8 > limit) return null;
+    let size = bytes.readUInt32BE(start);
+    const type = bytes.toString("ascii", start + 4, start + 8);
+    let headerSize = 8;
+    if (size === 1) {
+      if (start + 16 > limit) return null;
+      const largeSize = bytes.readBigUInt64BE(start + 8);
+      if (largeSize > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+      size = Number(largeSize);
+      headerSize = 16;
+    } else if (size === 0) {
+      size = limit - start;
+    }
+    if (size < headerSize || start + size > limit) return null;
+    return { start, size, type, headerSize, payload: start + headerSize, end: start + size };
+  };
+
+  let offset = 0;
+  while (offset + 8 <= bytes.length) {
+    const box = readBox(offset, bytes.length);
+    if (!box) return 0;
+    if (box.type === "moov") {
+      let childOffset = box.payload;
+      while (childOffset + 8 <= box.end) {
+        const child = readBox(childOffset, box.end);
+        if (!child) break;
+        if (child.type === "mvhd") {
+          const version = bytes[child.payload];
+          let timescale;
+          let duration;
+          if (version === 0 && child.payload + 20 <= child.end) {
+            timescale = bytes.readUInt32BE(child.payload + 12);
+            duration = bytes.readUInt32BE(child.payload + 16);
+          } else if (version === 1 && child.payload + 32 <= child.end) {
+            timescale = bytes.readUInt32BE(child.payload + 20);
+            const rawDuration = bytes.readBigUInt64BE(child.payload + 24);
+            if (rawDuration > BigInt(Number.MAX_SAFE_INTEGER)) return 0;
+            duration = Number(rawDuration);
+          } else {
+            return 0;
+          }
+          if (!timescale || !duration || duration === 0xffffffff) return 0;
+          const seconds = duration / timescale;
+          return Number.isFinite(seconds) && seconds > 0 && seconds < 24 * 60 * 60 ? seconds : 0;
+        }
+        childOffset = child.end;
+      }
+      return 0;
+    }
+    offset = box.end;
+  }
+  return 0;
+}
+
 async function fetchMediaFile(url, expectedKind = "document") {
   let response;
   try {
@@ -126,7 +183,13 @@ async function fetchMediaFile(url, expectedKind = "document") {
   if (mp4 && (expectedKind === "audio" || type.startsWith("audio/"))) {
     return { buffer: bytes, mimetype: "audio/mp4", extension: "m4a", kind: "audio" };
   }
-  if (mp4) return { buffer: bytes, mimetype: "video/mp4", extension: "mp4", kind: "video" };
+  if (mp4) {
+    const durationSeconds = readMp4DurationSeconds(bytes);
+    if (expectedKind === "video" && !durationSeconds) {
+      throw new Error("The MP4 is missing valid duration metadata. Trying another properly muxed video source.");
+    }
+    return { buffer: bytes, mimetype: "video/mp4", extension: "mp4", kind: "video", durationSeconds };
+  }
   if (webm && (expectedKind === "audio" || type.startsWith("audio/"))) {
     return { buffer: bytes, mimetype: "audio/webm", extension: "webm", kind: "audio" };
   }
@@ -382,6 +445,11 @@ async function runYouTubeSearchMedia(ctx, kind) {
   const title = String(track.title || track.name || track.trackName || query)
     .replace(/[\r\n*_~]/g, " ").slice(0, 140);
   const providers = [
+    {
+      label: "YouTube Lite (metadata-muxed MP4)",
+      endpoint: "https://api.omegatech.app/api/download/Yt-lite",
+      params: { action: "video", url: videoUrl, res: 720 }
+    },
     {
       label: "YouTube downloader",
       endpoint: "https://api.omegatech.app/api/download/YouTube",
