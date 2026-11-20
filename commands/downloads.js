@@ -290,10 +290,11 @@ export function findYouTubeMediaUrls(payload, kind) {
 
     if (typeof value === "string") {
       const raw = value.trim();
-      if (/^https?:\/\//i.test(raw)) {
+      if (/^https:\/\//i.test(raw)) {
+        const safeUrl = safeMediaUrl(raw, kind);
         let parsed;
-        try { parsed = new URL(raw); } catch { parsed = null; }
-        if (parsed && !/youtube\.com\/(watch|shorts)|youtu\.be\//i.test(raw)) {
+        try { parsed = safeUrl ? new URL(safeUrl) : null; } catch { parsed = null; }
+        if (parsed && !/youtube\.com\/(watch|shorts)|youtu\.be\//i.test(safeUrl)) {
           const keyPath = path.join(".").toLowerCase();
           const filePath = parsed.pathname.toLowerCase();
           if (!/thumbnail|image|cover|artwork|avatar|channel|watchpage|youtubeurl|preview/i.test(keyPath) &&
@@ -307,8 +308,8 @@ export function findYouTubeMediaUrls(payload, kind) {
             const typeConflict = kind === "audio" ? videoExt : audioExt;
             if (!typeConflict) {
               const score = typeScore + (parsed.protocol === "https:" ? 0 : 5);
-              const prior = candidates.get(raw);
-              if (prior == null || score < prior.score) candidates.set(raw, { url: raw, score });
+              const prior = candidates.get(safeUrl);
+              if (prior == null || score < prior.score) candidates.set(safeUrl, { url: safeUrl, score });
             }
           }
         }
