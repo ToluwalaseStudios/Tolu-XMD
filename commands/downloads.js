@@ -162,7 +162,7 @@ async function fetchMediaFile(url, expectedKind = "document") {
   throw new Error("The provider returned an unsupported or damaged media file. No broken attachment was sent.");
 }
 
-async function sendDownloadedMedia(ctx, url, title, item = {}, fallbackKind = "document") {
+async function sendDownloadedMedia(ctx, url, title, item = {}, fallbackKind = "document", preparedMedia = null) {
   const cleanTitle = String(title || "Toluwalase-XMD download").replace(/[\r\n*_\x60~]/g, " ").trim().slice(0, 150);
   const caption = unicodeBox("📥 DOWNLOAD READY", [
     "✅ *" + cleanTitle + "*",
@@ -170,7 +170,7 @@ async function sendDownloadedMedia(ctx, url, title, item = {}, fallbackKind = "d
     item.size ? "📦 Size: " + String(item.size).slice(0, 50) : ""
   ].filter(Boolean).join("\n"), { footer: true });
 
-  const media = await fetchMediaFile(url, fallbackKind);
+  const media = preparedMedia || await fetchMediaFile(url, fallbackKind);
   if (fallbackKind === "video" && media.kind !== "video") {
     throw new Error("The provider returned audio instead of a video. No incorrect attachment was sent.");
   }
@@ -276,33 +276,90 @@ function findYouTubeMusicTrack(payload) {
   return null;
 }
 
-function findYouTubeMediaUrl(payload, kind) {
-  const queue = [payload], seen = new Set(), candidates = [];
-  while (queue.length) {
-    const value = queue.shift();
+export function findYouTubeMediaUrls(payload, kind) {
+  const queue = [{ value: payload, path: [] }];
+  const seen = new Set();
+  const candidates = new Map();
+  let visited = 0;
+
+  while (queue.length && visited < 5000) {
+    const current = queue.shift();
+    const value = current?.value;
+    const path = current?.path || [];
+    visited += 1;
+
+    if (typeof value === "string") {
+      const raw = value.trim();
+      if (/^https:\/\//i.test(raw)) {
+        const safeUrl = safeMediaUrl(raw, kind);
+        let parsed;
+        try { parsed = safeUrl ? new URL(safeUrl) : null; } catch { parsed = null; }
+        if (parsed && !/youtube\.com\/(watch|shorts)|youtu\.be\//i.test(safeUrl)) {
+          const keyPath = path.join(".").toLowerCase();
+          const filePath = parsed.pathname.toLowerCase();
+          if (!/thumbnail|image|cover|artwork|avatar|channel|watchpage|youtubeurl|preview/i.test(keyPath) &&
+              !/\.(jpg|jpeg|png|webp|gif|svg)(?:$|\?)/i.test(filePath)) {
+            const audioExt = /\.(mp3|m4a|aac|ogg|opus|wav|flac)(?:$|\?)/i.test(filePath);
+            const videoExt = /\.(mp4|m4v|mov|webm|mkv|3gp)(?:$|\?)/i.test(filePath);
+            const context = keyPath;
+            const typeScore = kind === "audio"
+              ? (/audio|mp3|m4a|sound|stream/i.test(context) ? 0 : audioExt ? 1 : /download|file|media|url|link/i.test(context) ? 2 : 4)
+              : (/video|mp4|m4v/i.test(context) ? 0 : videoExt ? 1 : /download|file|media|url|link/i.test(context) ? 2 : 4);
+            const typeConflict = kind === "audio"
+              ? videoExt || /video|mp4|m4v/i.test(context)
+              : audioExt || /audio|mp3|m4a/i.test(context);
+            if (!typeConflict) {
+              const score = typeScore + (parsed.protocol === "https:" ? 0 : 5);
+              const prior = candidates.get(safeUrl);
+              if (prior == null || score < prior.score) candidates.set(safeUrl, { url: safeUrl, score });
+            }
+          }
+        }
+      } else if (raw.startsWith("{") || raw.startsWith("[")) {
+        try { queue.push({ value: JSON.parse(raw), path: [...path, "json"] }); } catch {}
+      }
+      continue;
+    }
+
     if (!value || typeof value !== "object" || seen.has(value)) continue;
     seen.add(value);
-    if (Array.isArray(value)) { queue.push(...value); continue; }
-    for (const [key, child] of Object.entries(value)) {
-      if (typeof child === "string" && /^https:\/\//i.test(child)) {
-        const name = key.toLowerCase();
-        if (/thumbnail|image|cover|artwork|channel|watchpage|youtubeurl/i.test(name)) continue;
-        const path = (() => { try { return new URL(child).pathname.toLowerCase(); } catch { return ""; } })();
-        if (/youtube\.com\/(watch|shorts)|youtu\.be\//i.test(child)) continue;
-        const preferred = kind === "video"
-          ? /mp4|video|download|file/i.test(name) || /\.mp4$/i.test(path)
-          : /mp3|audio|download|file/i.test(name) || /\.(mp3|m4a|aac|ogg|opus|wav)$/i.test(path);
-        if (preferred) candidates.push({ url: child, score:
-          (kind === "video" ? /mp4|video/i : /mp3|audio/i).test(name) ? 0 : 1 });
-      } else if (child && typeof child === "object") queue.push(child);
+    if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i += 1) {
+        queue.push({ value: value[i], path: [...path, String(i)] });
+      }
+    } else {
+      const entries = Object.entries(value).sort(([a], [b]) => {
+        const priority = key => /audio|video|mp3|mp4|download|file|media|url|link|format/i.test(key) ? 0 : 1;
+        return priority(a) - priority(b);
+      });
+      for (const [key, child] of entries) queue.push({ value: child, path: [...path, key] });
     }
   }
-  candidates.sort((a, b) => a.score - b.score);
-  for (const candidate of candidates) {
-    const url = safeMediaUrl(candidate.url, kind);
-    if (url) return url;
+
+  return [...candidates.values()].sort((a, b) => a.score - b.score).map(item => item.url);
+}
+
+async function sendYouTubeMediaCandidates(ctx, candidates, title, kind, track) {
+  const failures = [];
+  for (const url of candidates.slice(0, 12)) {
+    try {
+      const media = await fetchMediaFile(url, kind);
+      if (media.kind !== kind) {
+        failures.push("wrong media type");
+        continue;
+      }
+      await sendDownloadedMedia(ctx, url, title, {
+        type: kind === "video" ? "video/mp4" : "audio/mpeg",
+        extension: kind === "video" ? "mp4" : "mp3",
+        quality: track?.quality || ""
+      }, kind, media);
+      return;
+    } catch (error) {
+      failures.push(String(error?.message || error).slice(0, 100));
+    }
   }
-  return "";
+  throw new Error("The YouTube providers did not supply a usable " + kind +
+    " file. " + (failures[0] || "No compatible direct media URL was found."));
 }
 
 async function runYouTubeSearchMedia(ctx, kind) {
@@ -315,20 +372,53 @@ async function runYouTubeSearchMedia(ctx, kind) {
   await ctx.reply(kind === "video"
     ? "🎬 Searching YouTube for the requested video..."
     : "🎧 Searching YouTube for the requested audio...");
+
   const api = "https://api.omegatech.app/api/download/ytultra";
   const search = await requestExternalJson(api, { action: "search", query }, 60000);
   const track = findYouTubeMusicTrack(search);
   if (!track) throw new Error("YouTube search returned no usable video result.");
-  const download = await requestExternalJson(api, { action: "download", url: track.videoId }, 90000);
-  const mediaUrl = findYouTubeMediaUrl(download, kind);
-  if (!mediaUrl) throw new Error("The provider did not return a direct " + kind + " file URL.");
+
+  const videoUrl = "https://www.youtube.com/watch?v=" + track.videoId;
   const title = String(track.title || track.name || track.trackName || query)
     .replace(/[\r\n*_~]/g, " ").slice(0, 140);
-  await sendDownloadedMedia(ctx, mediaUrl, title, {
-    type: kind === "video" ? "video/mp4" : "audio/mpeg",
-    extension: kind === "video" ? "mp4" : "mp3",
-    quality: track.quality || ""
-  }, kind);
+  const providers = [
+    {
+      label: "YouTube downloader",
+      endpoint: "https://api.omegatech.app/api/download/YouTube",
+      params: { action: "download", url: videoUrl, type: kind, quality: "720", bitrate: "192" }
+    },
+    {
+      label: "YouTube Ultra",
+      endpoint: api,
+      params: { action: "download", url: track.videoId }
+    },
+    {
+      label: "Universal media resolver",
+      endpoint: "https://api.omegatech.app/api/download/All-downloader-v3",
+      params: { action: "resolve", url: videoUrl, audioOnly: kind === "audio" }
+    }
+  ];
+  const failures = [];
+  for (const provider of providers) {
+    try {
+      const payload = await requestExternalJson(provider.endpoint, provider.params, 90000);
+      const candidates = findYouTubeMediaUrls(payload, kind);
+      if (!candidates.length) {
+        failures.push(provider.label + " returned no media links");
+        continue;
+      }
+      try {
+        await sendYouTubeMediaCandidates(ctx, candidates, title, kind, track);
+        return;
+      } catch (error) {
+        failures.push(provider.label + ": " + String(error?.message || error).slice(0, 140));
+      }
+    } catch (error) {
+      failures.push(provider.label + ": " + String(error?.message || error).slice(0, 140));
+    }
+  }
+  throw new Error("Could not prepare the requested YouTube " + kind +
+    " after trying the available download services. " + failures.join(" | ").slice(0, 500));
 }
 
 async function runYouTubeSearchVideo(ctx) {
