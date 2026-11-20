@@ -97,6 +97,13 @@ async function runMusicSearch(ctx) {
 
 export default [
   {
+    name: "play",
+    aliases: ["musicsearch"],
+    category: "Downloads",
+    description: "Search YouTube Music and return the listening link and video ID (does not download media).",
+    run: runMusicSearch
+  },
+  {
     name: "upload",
     aliases: ["uploadfile"],
     category: "Downloads",
