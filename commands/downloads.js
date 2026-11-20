@@ -17,8 +17,8 @@ const PLATFORM_HOSTS = Object.freeze({
   tiktok: ["tiktok.com", "vm.tiktok.com", "vt.tiktok.com"]
 });
 
-function requirePlatformUrl(ctx, label, allowedHosts) {
-  const raw = String(ctx.args || "").trim().split(/\s+/)[0];
+function requirePlatformUrl(ctx, label, allowedHosts, input = ctx.args) {
+  const raw = String(input || "").trim().split(/\s+/)[0];
   if (!raw) throw new Error("Usage: " + ctx.config.prefix + ctx.commandName + " https://...");
   let url;
   try {
@@ -171,6 +171,12 @@ async function sendDownloadedMedia(ctx, url, title, item = {}, fallbackKind = "d
   ].filter(Boolean).join("\n"), { footer: true });
 
   const media = await fetchMediaFile(url, fallbackKind);
+  if (fallbackKind === "video" && media.kind !== "video") {
+    throw new Error("The provider returned audio instead of a video. No incorrect attachment was sent.");
+  }
+  if (fallbackKind === "audio" && media.kind !== "audio") {
+    throw new Error("The provider returned video or another file instead of audio. No incorrect attachment was sent.");
+  }
   const fileName = safeFileName(cleanTitle, "Toluwalase-XMD-download") + "." + media.extension;
 
   if (media.kind === "video") {
@@ -268,6 +274,80 @@ function findYouTubeMusicTrack(payload) {
     }
   }
   return null;
+}
+
+function requireAuthorisedInput(ctx) {
+  const raw = String(ctx.args || "").trim();
+  const match = raw.match(/^--authorised\s+(.+)$/i);
+  if (!match || !match[1].trim()) {
+    throw new Error(
+      "Usage: " + ctx.config.prefix + ctx.commandName +
+      " --authorised <search or YouTube URL>. Only use this for content you own or have permission to download."
+    );
+  }
+  return match[1].trim();
+}
+
+function findYouTubeMediaUrl(payload, kind) {
+  const queue = [payload], seen = new Set(), candidates = [];
+  while (queue.length) {
+    const value = queue.shift();
+    if (!value || typeof value !== "object" || seen.has(value)) continue;
+    seen.add(value);
+    if (Array.isArray(value)) { queue.push(...value); continue; }
+    for (const [key, child] of Object.entries(value)) {
+      if (typeof child === "string" && /^https:\/\//i.test(child)) {
+        const name = key.toLowerCase();
+        if (/thumbnail|image|cover|artwork|channel|watchpage|youtubeurl/i.test(name)) continue;
+        const path = (() => { try { return new URL(child).pathname.toLowerCase(); } catch { return ""; } })();
+        if (/youtube\.com\/(watch|shorts)|youtu\.be\//i.test(child)) continue;
+        const preferred = kind === "video"
+          ? /mp4|video|download|file/i.test(name) || /\.mp4$/i.test(path)
+          : /mp3|audio|download|file/i.test(name) || /\.(mp3|m4a|aac|ogg|opus|wav)$/i.test(path);
+        if (preferred) candidates.push({ url: child, score:
+          (kind === "video" ? /mp4|video/i : /mp3|audio/i).test(name) ? 0 : 1 });
+      } else if (child && typeof child === "object") queue.push(child);
+    }
+  }
+  candidates.sort((a, b) => a.score - b.score);
+  for (const candidate of candidates) {
+    const url = safeMediaUrl(candidate.url, kind);
+    if (url) return url;
+  }
+  return "";
+}
+
+async function runYouTubeSearchMedia(ctx, kind) {
+  const query = requireAuthorisedInput(ctx);
+  if (/^https?:\/\//i.test(query)) {
+    throw new Error("Use a search phrase with !" + ctx.commandName + "; use !ytvideo --authorised <YouTube URL> for a link.");
+  }
+  if (query.length > 180) throw new Error("Keep the search under 180 characters.");
+  await ctx.reply(kind === "video"
+    ? "🎬 Searching YouTube for the requested video..."
+    : "🎧 Searching YouTube for the requested audio...");
+  const api = "https://api.omegatech.app/api/download/ytultra";
+  const search = await requestExternalJson(api, { action: "search", query }, 60000);
+  const track = findYouTubeMusicTrack(search);
+  if (!track) throw new Error("YouTube search returned no usable video result.");
+  const download = await requestExternalJson(api, { action: "download", url: track.videoId }, 90000);
+  const mediaUrl = findYouTubeMediaUrl(download, kind);
+  if (!mediaUrl) throw new Error("The provider did not return a direct " + kind + " file URL.");
+  const title = String(track.title || track.name || track.trackName || query)
+    .replace(/[\r\n*_~]/g, " ").slice(0, 140);
+  await sendDownloadedMedia(ctx, mediaUrl, title, {
+    type: kind === "video" ? "video/mp4" : "audio/mpeg",
+    extension: kind === "video" ? "mp4" : "mp3",
+    quality: track.quality || ""
+  }, kind);
+}
+
+async function runYouTubeSearchVideo(ctx) {
+  return runYouTubeSearchMedia(ctx, "video");
+}
+
+async function runYouTubeSearchAudio(ctx) {
+  return runYouTubeSearchMedia(ctx, "audio");
 }
 
 async function downloadFromAppleMusic(query) {
@@ -432,7 +512,8 @@ async function runSong(ctx) {
 }
 
 async function runYouTubeVideo(ctx) {
-  const url = requirePlatformUrl(ctx, "YouTube", PLATFORM_HOSTS.ytmp4);
+  const authorisedInput = requireAuthorisedInput(ctx);
+  const url = requirePlatformUrl(ctx, "YouTube", PLATFORM_HOSTS.ytmp4, authorisedInput);
   await ctx.reply("🎬 Preparing the YouTube video download...");
   const payload = await requestApiJson("ytv", { url }, 90000);
   const data = payload?.results || payload?.result || payload?.data || {};
@@ -442,7 +523,7 @@ async function runYouTubeVideo(ctx) {
     type: "video/mp4",
     extension: "mp4",
     quality: data.quality || "available"
-  });
+  }, "video");
 }
 
 export default [
@@ -490,16 +571,28 @@ export default [
     run: async ctx => runAio(ctx, requirePlatformUrl(ctx, "TikTok", PLATFORM_HOSTS.tiktok), "TIKTOK")
   },
   {
-    name: "play",
-    aliases: ["song", "play2", "ytsearch", "musicsearch"],
+    name: "song",
+    aliases: ["play2", "ytsearch", "musicsearch"],
     category: "Downloads",
-    description: "Search a song and send the full audio file to WhatsApp.",
+    description: "Search configured music providers and send audio for content you are authorised to download.",
     run: runSong
   },
   {
-    name: "video",
+    name: "play",
     category: "Downloads",
-    description: "Download a YouTube video using the configured API service.",
+    description: "Search YouTube and send an authorised video as a WhatsApp attachment.",
+    run: runYouTubeSearchVideo
+  },
+  {
+    name: "ytaudio",
+    category: "Downloads",
+    description: "Search YouTube and send authorised audio as a WhatsApp attachment.",
+    run: runYouTubeSearchAudio
+  },
+  {
+    name: "ytvideo",
+    category: "Downloads",
+    description: "Send an authorised YouTube video URL as a WhatsApp attachment.",
     run: runYouTubeVideo
   }
 ];

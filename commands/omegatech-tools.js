@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import { downloadMediaMessage } from "@whiskeysockets/baileys";
 import { getContextInfo, unwrapMessage } from "../lib/message-utils.js";
-import { requestExternalJson, unicodeBox, withPoweredFooter, safeFileName } from "../lib/api-client.js";
+import { unicodeBox, withPoweredFooter, safeFileName } from "../lib/api-client.js";
 
 const API = "https://api.omegatech.app/api";
 
@@ -66,43 +66,7 @@ async function runPone(ctx) {
   await ctx.reply(withPoweredFooter(unicodeBox("☁️ FILE UPLOADER", lines.join("\n"), { footer: false }), 2500));
 }
 
-function findTrack(payload) {
-  const queue = [payload], seen = new Set();
-  while (queue.length) {
-    const value = queue.shift();
-    if (!value || typeof value !== "object" || seen.has(value)) continue;
-    seen.add(value);
-    if (Array.isArray(value)) { queue.push(...value); continue; }
-    const id = value.videoId || value.video_id || value.videoid ||
-      (typeof value.id === "string" && /^[A-Za-z0-9_-]{11}$/.test(value.id) ? value.id : "");
-    if (typeof id === "string" && /^[A-Za-z0-9_-]{11}$/.test(id)) return { ...value, videoId: id };
-    for (const child of Object.values(value)) if (child && typeof child === "object") queue.push(child);
-  }
-  return null;
-}
-
-async function runMusicSearch(ctx) {
-  const query = String(ctx.args || "").trim();
-  if (!query) throw new Error("Usage: " + ctx.config.prefix + "play song title or artist");
-  if (query.length > 180) throw new Error("Keep the search under 180 characters.");
-  const payload = await requestExternalJson(API + "/download/play", { action: "search", query }, 60000);
-  const track = findTrack(payload);
-  if (!track) throw new Error("YouTube Music search returned no matching track.");
-  const title = String(track.title || track.name || track.trackName || query).slice(0, 160);
-  const artist = String(track.artist || track.artistName || track.channelName || track.author || "").slice(0, 120);
-  const url = "https://music.youtube.com/watch?v=" + track.videoId;
-  const lines = ["🎵 " + title, artist ? "🎤 " + artist : "", "▶️ Listen: " + url, "🆔 Video ID: " + track.videoId].filter(Boolean);
-  await ctx.reply(withPoweredFooter(unicodeBox("🎧 YOUTUBE MUSIC SEARCH", lines.join("\n"), { footer: false }), 1800));
-}
-
 export default [
-  {
-    name: "play",
-    aliases: ["musicsearch"],
-    category: "Downloads",
-    description: "Search YouTube Music and return the listening link and video ID (does not download media).",
-    run: runMusicSearch
-  },
   {
     name: "upload",
     aliases: ["uploadfile"],

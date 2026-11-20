@@ -15,10 +15,16 @@ test("selected commands load without collisions and excluded modules stay inacti
     "menu", "help", "ping", "alive", "owner", "support", "time", "date",
     "version", "jid", "whoami", "calc", "poll", "coinflip", "dice",
     "8ball", "choose", "trivia", "riddle", "activity", "vv", "vv2",
-    "mode", "setprefix", "play", "upload", "claude", "deepai", "chatgpt", "gemini", "buildapp", "wormgpt", "moviebox", "txt2video", "fetch", "clideo", "gemtts", "woman1", "woman2", "woman3", "man1", "man2", "man3", "captts"
+    "play", "song", "ytaudio", "ytvideo",
+    "mode", "setprefix", "upload", "claude", "deepai", "chatgpt", "gemini", "buildapp", "wormgpt", "moviebox", "txt2video", "fetch", "clideo", "gemtts", "woman1", "woman2", "woman3", "man1", "man2", "man3", "captts"
   ]) {
     assert.ok(lookup.has(name), "missing retained command " + name);
   }
+
+  assert.equal(lookup.has("video"), false, "old !video command should be renamed to !ytvideo");
+  assert.equal(lookup.get("song").name, "song");
+  assert.equal(lookup.get("play").name, "play");
+  assert.equal(lookup.get("ytvideo").name, "ytvideo");
 
   for (const name of [
     "ai", "ask", "gpt", "mathgpt", "deepseek", "translate", "summarize",
