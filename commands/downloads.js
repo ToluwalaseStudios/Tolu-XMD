@@ -276,18 +276,6 @@ function findYouTubeMusicTrack(payload) {
   return null;
 }
 
-function requireAuthorisedInput(ctx) {
-  const raw = String(ctx.args || "").trim();
-  const match = raw.match(/^--authorised\s+(.+)$/i);
-  if (!match || !match[1].trim()) {
-    throw new Error(
-      "Usage: " + ctx.config.prefix + ctx.commandName +
-      " --authorised <search or YouTube URL>. Only use this for content you own or have permission to download."
-    );
-  }
-  return match[1].trim();
-}
-
 function findYouTubeMediaUrl(payload, kind) {
   const queue = [payload], seen = new Set(), candidates = [];
   while (queue.length) {
@@ -318,9 +306,10 @@ function findYouTubeMediaUrl(payload, kind) {
 }
 
 async function runYouTubeSearchMedia(ctx, kind) {
-  const query = requireAuthorisedInput(ctx);
+  const query = String(ctx.args || "").trim();
+  if (!query) throw new Error("Usage: " + ctx.config.prefix + ctx.commandName + " search phrase");
   if (/^https?:\/\//i.test(query)) {
-    throw new Error("Use a search phrase with !" + ctx.commandName + "; use !ytvideo --authorised <YouTube URL> for a link.");
+    throw new Error("Use a search phrase with !" + ctx.commandName + "; use !ytvideo <YouTube URL> for a link.");
   }
   if (query.length > 180) throw new Error("Keep the search under 180 characters.");
   await ctx.reply(kind === "video"
@@ -512,8 +501,7 @@ async function runSong(ctx) {
 }
 
 async function runYouTubeVideo(ctx) {
-  const authorisedInput = requireAuthorisedInput(ctx);
-  const url = requirePlatformUrl(ctx, "YouTube", PLATFORM_HOSTS.ytmp4, authorisedInput);
+  const url = requirePlatformUrl(ctx, "YouTube", PLATFORM_HOSTS.ytmp4);
   await ctx.reply("🎬 Preparing the YouTube video download...");
   const payload = await requestApiJson("ytv", { url }, 90000);
   const data = payload?.results || payload?.result || payload?.data || {};
@@ -580,19 +568,19 @@ export default [
   {
     name: "play",
     category: "Downloads",
-    description: "Search YouTube and send an authorised video as a WhatsApp attachment.",
+    description: "Search YouTube and send a video as a WhatsApp attachment.",
     run: runYouTubeSearchVideo
   },
   {
     name: "ytaudio",
     category: "Downloads",
-    description: "Search YouTube and send authorised audio as a WhatsApp attachment.",
+    description: "Search YouTube and send audio as a WhatsApp attachment.",
     run: runYouTubeSearchAudio
   },
   {
     name: "ytvideo",
     category: "Downloads",
-    description: "Send an authorised YouTube video URL as a WhatsApp attachment.",
+    description: "Download a YouTube video URL as a WhatsApp attachment.",
     run: runYouTubeVideo
   }
 ];
