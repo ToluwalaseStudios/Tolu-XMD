@@ -139,7 +139,7 @@ export function readMp4DurationSeconds(bytes) {
   return 0;
 }
 
-async function fetchMediaFile(url, expectedKind = "document") {
+async function fetchMediaFile(url, expectedKind = "document", options = {}) {
   let response;
   try {
     response = await fetch(url, {
@@ -185,8 +185,8 @@ async function fetchMediaFile(url, expectedKind = "document") {
   }
   if (mp4) {
     const durationSeconds = readMp4DurationSeconds(bytes);
-    if (expectedKind === "video" && !durationSeconds) {
-      throw new Error("The MP4 is missing valid duration metadata. Trying another properly muxed video source.");
+    if (expectedKind === "video" && !durationSeconds && !options.allowMissingMp4Duration) {
+      throw new Error("The MP4 is missing valid duration metadata.");
     }
     return { buffer: bytes, mimetype: "video/mp4", extension: "mp4", kind: "video", durationSeconds };
   }
@@ -230,7 +230,8 @@ async function sendDownloadedMedia(ctx, url, title, item = {}, fallbackKind = "d
   const caption = unicodeBox("📥 DOWNLOAD READY", [
     "✅ *" + cleanTitle + "*",
     item.quality ? "✨ Quality: " + String(item.quality).slice(0, 50) : "",
-    item.size ? "📦 Size: " + String(item.size).slice(0, 50) : ""
+    item.size ? "📦 Size: " + String(item.size).slice(0, 50) : "",
+    item.durationWarning ? "⚠️ This source did not provide duration metadata." : ""
   ].filter(Boolean).join("\n"), { footer: true });
 
   const media = preparedMedia || await fetchMediaFile(url, fallbackKind);
@@ -402,13 +403,20 @@ export function findYouTubeMediaUrls(payload, kind) {
   return [...candidates.values()].sort((a, b) => a.score - b.score).map(item => item.url);
 }
 
-async function sendYouTubeMediaCandidates(ctx, candidates, title, kind, track) {
+async function sendYouTubeMediaCandidates(ctx, candidates, title, kind, track, fallbackState) {
   const failures = [];
   for (const url of candidates.slice(0, 12)) {
     try {
-      const media = await fetchMediaFile(url, kind);
+      const media = await fetchMediaFile(url, kind, {
+        allowMissingMp4Duration: kind === "video"
+      });
       if (media.kind !== kind) {
         failures.push("wrong media type");
+        continue;
+      }
+      if (kind === "video" && !media.durationSeconds) {
+        if (!fallbackState.media) fallbackState.media = { url, media };
+        failures.push("playable MP4 has no duration metadata; retained as last-resort fallback");
         continue;
       }
       await sendDownloadedMedia(ctx, url, title, {
@@ -416,13 +424,13 @@ async function sendYouTubeMediaCandidates(ctx, candidates, title, kind, track) {
         extension: kind === "video" ? "mp4" : "mp3",
         quality: track?.quality || ""
       }, kind, media);
-      return;
+      return true;
     } catch (error) {
-      failures.push(String(error?.message || error).slice(0, 100));
+      failures.push(String(error?.message || error).slice(0, 140));
     }
   }
-  throw new Error("The YouTube providers did not supply a usable " + kind +
-    " file. " + (failures[0] || "No compatible direct media URL was found."));
+  fallbackState.failures.push(...failures);
+  return false;
 }
 
 async function runYouTubeSearchMedia(ctx, kind) {
@@ -446,9 +454,19 @@ async function runYouTubeSearchMedia(ctx, kind) {
     .replace(/[\r\n*_~]/g, " ").slice(0, 140);
   const providers = [
     {
-      label: "YouTube Lite (metadata-muxed MP4)",
-      endpoint: "https://api.omegatech.app/api/download/Yt-lite",
-      params: { action: "video", url: videoUrl, res: 720 }
+      label: "YouTube Extra format resolver",
+      endpoint: "https://api.omegatech.app/api/download/YouTube-extra",
+      params: { action: "parse", url: videoUrl }
+    },
+    {
+      label: "YouTube DL",
+      endpoint: "https://api.omegatech.app/api/download/yt-dl",
+      params: { url: videoUrl, quality: "720" }
+    },
+    {
+      label: "YouTube Mate",
+      endpoint: "https://api.omegatech.app/api/download/Yt-mate",
+      params: { action: "download", url: videoUrl, format: "mp4" }
     },
     {
       label: "YouTube downloader",
@@ -456,17 +474,28 @@ async function runYouTubeSearchMedia(ctx, kind) {
       params: { action: "download", url: videoUrl, type: kind, quality: "720", bitrate: "192" }
     },
     {
-      label: "YouTube Ultra",
-      endpoint: api,
-      params: { action: "download", url: track.videoId }
+      label: "Universal media resolver v3",
+      endpoint: "https://api.omegatech.app/api/download/All-downloader-v3",
+      params: { action: "resolve", url: videoUrl, audioOnly: kind === "audio" }
     },
     {
       label: "Universal media resolver",
-      endpoint: "https://api.omegatech.app/api/download/All-downloader-v3",
-      params: { action: "resolve", url: videoUrl, audioOnly: kind === "audio" }
+      endpoint: "https://api.omegatech.app/api/download/all",
+      params: { action: "resolve", url: videoUrl, quality: "720", engine: "auto" }
+    },
+    {
+      label: "YouTube Ultra",
+      endpoint: api,
+      params: { action: "download", url: videoUrl }
+    },
+    {
+      label: "YouTube Lite",
+      endpoint: "https://api.omegatech.app/api/download/Yt-lite",
+      params: { action: kind, url: videoUrl, res: 720 }
     }
   ];
   const failures = [];
+  const fallbackState = { media: null, failures: [] };
   for (const provider of providers) {
     try {
       const payload = await requestExternalJson(provider.endpoint, provider.params, 90000);
@@ -475,18 +504,27 @@ async function runYouTubeSearchMedia(ctx, kind) {
         failures.push(provider.label + " returned no media links");
         continue;
       }
-      try {
-        await sendYouTubeMediaCandidates(ctx, candidates, title, kind, track);
-        return;
-      } catch (error) {
-        failures.push(provider.label + ": " + String(error?.message || error).slice(0, 140));
-      }
+      const sent = await sendYouTubeMediaCandidates(ctx, candidates, title, kind, track, fallbackState);
+      if (sent) return;
+      failures.push(provider.label + ": no sendable media candidate");
     } catch (error) {
-      failures.push(provider.label + ": " + String(error?.message || error).slice(0, 140));
+      failures.push(provider.label + ": " + String(error?.message || error).slice(0, 180));
     }
   }
+
+  if (kind === "video" && fallbackState.media) {
+    await ctx.reply("⚠️ I found a playable video, but its source has no duration metadata. Sending the video instead of failing.");
+    await sendDownloadedMedia(ctx, fallbackState.media.url, title, {
+      type: "video/mp4",
+      extension: "mp4",
+      quality: track?.quality || "",
+      durationWarning: true
+    }, kind, fallbackState.media.media);
+    return;
+  }
+
   throw new Error("Could not prepare the requested YouTube " + kind +
-    " after trying the available download services. " + failures.join(" | ").slice(0, 500));
+    " after trying the available download services. " + failures.join(" | ").slice(0, 1100));
 }
 
 async function runYouTubeSearchVideo(ctx) {
