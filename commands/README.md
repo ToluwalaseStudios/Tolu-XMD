@@ -23,6 +23,14 @@ The public release contains **184 commands across 18 menu sections**.
 | Status Tools | statusdraft, statusideas |
 | Owner Tools | runtime |
 
+
+### Buildapp project downloads
+
+- `!buildapp <description>` creates a web app and attempts to retrieve the generated session files as `Buildapp-project.zip`.
+- `!buildapp download` retries retrieval of the latest saved project in the current bot session.
+- `!buildapp followup | <changes>` updates the saved project and attempts to send a refreshed ZIP.
+- A live preview URL is shown only when the provider actually returns one. Generating source files does not itself publish the website.
+
 The Channel menu section, its commands and channel-specific integrations are deliberately absent.
 
 Public-release exclusions include participant-management actions, group invite reset, live-presence tracking, private group-history collection and summaries, Meta AI participant automation, anti-delete/anti-edit monitoring, read-receipt controls, view-once recovery, automatic status viewing/reacting, fake private-message canvases and owner/session administration. The Chat Privacy command is informational only; Status Tools draft text locally; Owner Tools exposes only a read-only uptime summary. Welcome/goodbye messages are disabled by default and the group greeting settings do not collect chat history.
