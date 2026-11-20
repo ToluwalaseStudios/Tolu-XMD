@@ -305,7 +305,9 @@ export function findYouTubeMediaUrls(payload, kind) {
             const typeScore = kind === "audio"
               ? (/audio|mp3|m4a|sound|stream/i.test(context) ? 0 : audioExt ? 1 : /download|file|media|url|link/i.test(context) ? 2 : 4)
               : (/video|mp4|m4v/i.test(context) ? 0 : videoExt ? 1 : /download|file|media|url|link/i.test(context) ? 2 : 4);
-            const typeConflict = kind === "audio" ? videoExt : audioExt;
+            const typeConflict = kind === "audio"
+              ? videoExt || /video|mp4|m4v/i.test(context)
+              : audioExt || /audio|mp3|m4a/i.test(context);
             if (!typeConflict) {
               const score = typeScore + (parsed.protocol === "https:" ? 0 : 5);
               const prior = candidates.get(safeUrl);
