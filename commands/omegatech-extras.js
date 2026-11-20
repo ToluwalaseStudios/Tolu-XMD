@@ -16,7 +16,7 @@ const DEFAULT_SYSTEM = [
 ].join(" ");
 
 function getModelRows(payload) {
-  const candidates = [payload?.data?.models, payload?.models, payload?.data, payload?.result];
+  const candidates = [payload?.data?.data, payload?.data?.models, payload?.models, payload?.data, payload?.result];
   const list = candidates.find(Array.isArray) || [];
   return list.map(item => typeof item === "string" ? { id: item, name: item } : {
     id: String(item?.id || item?.model || item?.modelId || item?.name || ""),
@@ -57,7 +57,7 @@ async function runWormGPT(ctx) {
   }
 
   if (action === "models") {
-    const payload = await requestExternalJson(API + "/ai/wormgpt", { action: "models" }, 45000);
+    const payload = await requestExternalJson(API + "/gateway/models", {}, 45000);
     const models = getModelRows(payload);
     if (!models.length) throw new Error("The provider returned no readable model list.");
     MODEL_CACHE.set(key, models);
