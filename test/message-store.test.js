@@ -23,3 +23,38 @@ test("recent message store expires entries and enforces its size limit", () => {
   time += 51;
   assert.equal(store.size, 0);
 });
+
+
+test("recent message store resolves a message through its alternate PN/LID chat ID", () => {
+  const store = createRecentMessageStore();
+  const original = {
+    key: {
+      remoteJid: "1234567890@lid",
+      remoteJidAlt: "2348012345678@s.whatsapp.net",
+      id: "view-once-lid-1"
+    },
+    message: {
+      viewOnceMessageV2: {
+        message: { imageMessage: { mediaKey: Buffer.from("media-key") } }
+      }
+    }
+  };
+
+  assert.equal(store.remember(original), true);
+  assert.equal(
+    store.get({ remoteJid: "2348012345678:4@s.whatsapp.net", id: "view-once-lid-1" }),
+    original
+  );
+  assert.deepEqual(
+    store.getMessage({ remoteJid: "1234567890@lid", id: "view-once-lid-1" }),
+    original.message
+  );
+});
+
+test("recent message store ignores incomplete WhatsApp stubs without a message body", () => {
+  const store = createRecentMessageStore();
+  assert.equal(store.remember({
+    key: { remoteJid: "2348012345678@s.whatsapp.net", id: "stub-1" }
+  }), false);
+  assert.equal(store.size, 0);
+});
