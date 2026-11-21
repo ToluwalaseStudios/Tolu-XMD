@@ -19,7 +19,7 @@ export default Object.freeze({
   sessionDirectory: String(process.env.TOLUWALASE_SESSION_DIR || "./auth_info_baileys").trim(),
   dataDirectory: String(process.env.TOLUWALASE_DATA_DIR || process.env.FEI_DATA_DIR || "./data").trim(),
   logLevel: String(process.env.LOG_LEVEL || "info").trim().toLowerCase(),
-  browser: "Chrome",
+  businessAccount: String(process.env.WHATSAPP_BUSINESS_ACCOUNT || "").toLowerCase() === "true",
   channel,
   imageUrl: String(process.env.BOT_IMAGE_URL || "").trim(),
   botUrl: String(process.env.BOT_URL || "").trim()
