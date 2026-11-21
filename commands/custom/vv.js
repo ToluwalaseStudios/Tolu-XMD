@@ -8,7 +8,7 @@ import {
 
 function getQuotedReference(ctx) {
   const info = getContextInfo(ctx.msg?.message);
-  if (!info?.stanzaId || !info?.quotedMessage) return null;
+  if (!info?.stanzaId) return null;
   return info;
 }
 
@@ -22,11 +22,17 @@ export function resolveQuotedMessage(ctx) {
   if (!info) return null;
 
   const remoteJid = String(ctx.msg?.key?.remoteJid || ctx.jid || "");
+  const remoteJidAlt = String(ctx.msg?.key?.remoteJidAlt || "");
   const id = String(info.stanzaId);
-  const stored = ctx.getMessageByKey?.({ remoteJid, id });
+  const stored = ctx.getMessageByKey?.({ remoteJid, remoteJidAlt, id });
+  const requestedJids = new Set([remoteJid, remoteJidAlt].map(normalizeJid).filter(Boolean));
+  const storedJids = new Set([
+    stored?.key?.remoteJid,
+    stored?.key?.remoteJidAlt
+  ].map(normalizeJid).filter(Boolean));
+  const chatMatches = [...requestedJids].some(jid => storedJids.has(jid));
 
-  if (stored?.key?.id === id && stored?.message &&
-      normalizeJid(stored.key.remoteJid) === normalizeJid(remoteJid)) {
+  if (stored?.key?.id === id && stored?.message && chatMatches) {
     return {
       message: stored,
       key: stored.key,
@@ -36,6 +42,8 @@ export function resolveQuotedMessage(ctx) {
 
   // Compatibility fallback for messages that are no longer in the short-lived
   // store. Prefer the richer PN/alternate participant fields when available.
+  if (!info.quotedMessage) return null;
+
   const participant = normalizeJid(
     info.participantPn || info.participantAlt || info.participant || ""
   );
@@ -49,6 +57,7 @@ export function resolveQuotedMessage(ctx) {
     id,
     fromMe: Boolean(participant && selfIds.includes(participant))
   };
+  if (remoteJidAlt) key.remoteJidAlt = remoteJidAlt;
   if (participant) key.participant = participant;
 
   return {
@@ -153,19 +162,34 @@ async function recoverViewOnce(ctx) {
   }
 
   let buffer;
+  let downloadError = null;
   try {
     buffer = await downloadMediaMessage(
       originalMessage,
       "buffer",
       {},
-      { reuploadRequest: ctx.sock.updateMediaMessage }
+      { reuploadRequest: message => ctx.sock.updateMediaMessage(message) }
     );
   } catch (error) {
-    const detail = String(error?.message || error || "unknown download error").slice(0, 160);
-    return {
-      error: "I couldn't download this media (Baileys: " + detail +
-        "). Try again while the original sender is online."
-    };
+    downloadError = error;
+  }
+
+  // Try Baileys' lower-level stream API if the complete-message downloader fails.
+  if (!Buffer.isBuffer(buffer) || !buffer.length) {
+    try {
+      const { downloadContentFromMessage } = await import("@whiskeysockets/baileys");
+      const stream = await downloadContentFromMessage(found.media, found.kind);
+      const chunks = [];
+      for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+      buffer = Buffer.concat(chunks);
+    } catch (fallbackError) {
+      const detail = String(fallbackError?.message || downloadError?.message || "unknown download error")
+        .replace(/[\r\n\t]+/g, " ").slice(0, 180);
+      return {
+        error: "I couldn't download this media (Baileys: " + detail +
+          "). The bot must have received and stored the original full message."
+      };
+    }
   }
 
   if (!Buffer.isBuffer(buffer) || !buffer.length) {
