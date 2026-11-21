@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { loadCommands } from "../handlers/command-loader.js";
 import {
   buildViewOnceCaption,
+  resolveQuotedMessage,
   viewOncePayload
 } from "../commands/custom/vv.js";
 import { hasViewOnceMarker } from "../lib/message-utils.js";
@@ -118,6 +119,83 @@ test("view-once recovery rejects ordinary media that has no view-once wrapper", 
 
   await lookup.get("vv").run(ctx);
   assert.match(replies[0], /not view-once media/i);
+});
+
+
+test("prefers the original stored WhatsApp message over the reduced quoted snippet", () => {
+  const original = {
+    key: {
+      remoteJid: "12345-678@g.us",
+      participant: "2348000000000@s.whatsapp.net",
+      id: "view-once-1",
+      fromMe: false
+    },
+    messageTimestamp: 1795000000,
+    message: {
+      viewOnceMessageV2: {
+        message: {
+          imageMessage: {
+            mediaKey: Buffer.from("original-media-key"),
+            url: "https://mmg.whatsapp.net/example",
+            mimetype: "image/jpeg"
+          }
+        }
+      }
+    }
+  };
+  const ctx = {
+    jid: "12345-678@g.us",
+    msg: {
+      key: { remoteJid: "12345-678@g.us", id: "command-1" },
+      message: {
+        extendedTextMessage: {
+          contextInfo: {
+            stanzaId: "view-once-1",
+            participant: "2348000000000@s.whatsapp.net",
+            quotedMessage: {
+              viewOnceMessageV2: {
+                message: { imageMessage: { mimetype: "image/jpeg" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    getMessageByKey: key => key.id === "view-once-1" ? original : null
+  };
+
+  const resolved = resolveQuotedMessage(ctx);
+  assert.equal(resolved.source, "stored");
+  assert.equal(resolved.message, original);
+  assert.equal(resolved.key, original.key);
+  assert.ok(resolved.message.message.viewOnceMessageV2.message.imageMessage.mediaKey);
+});
+
+test("quoted-message fallback uses the best available participant identifier", () => {
+  const ctx = {
+    jid: "12345-678@g.us",
+    msg: {
+      key: { remoteJid: "12345-678@g.us", id: "command-2" },
+      message: {
+        extendedTextMessage: {
+          contextInfo: {
+            stanzaId: "view-once-2",
+            participant: "2348000000000:4@s.whatsapp.net",
+            participantPn: "2348111111111@s.whatsapp.net",
+            quotedMessage: {
+              viewOnceMessageV2: { message: { imageMessage: {} } }
+            }
+          }
+        }
+      }
+    },
+    sock: { user: { id: "2348000000000@s.whatsapp.net" } }
+  };
+
+  const resolved = resolveQuotedMessage(ctx);
+  assert.equal(resolved.source, "quoted");
+  assert.equal(resolved.key.participant, "2348111111111@s.whatsapp.net");
+  assert.equal(resolved.key.fromMe, false);
 });
 
 test("view-once payload conversion preserves the supported WhatsApp media fields", () => {
