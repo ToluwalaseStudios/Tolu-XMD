@@ -5,38 +5,29 @@ import { getWhatsAppBrowser } from "../lib/whatsapp-runtime.js";
 
 test("unregistered WhatsApp sessions retain a Web identity for pairing", () => {
   assert.deepEqual(
-    getWhatsAppBrowser({ registered: false }, {}, {}),
+    getWhatsAppBrowser({ registered: false }, {}),
     ["Ubuntu", "Chrome", "20.0.04"]
   );
 });
 
-test("registered personal WhatsApp sessions use the Android 13 identity", () => {
+test("registered personal WhatsApp sessions use Baileys' Android Chrome preset", () => {
+  const calls = [];
   const browsers = {
-    android: version => ["Android", "Chrome", version]
+    android: browserName => {
+      calls.push(browserName);
+      return [browserName, "Android", ""];
+    }
   };
   assert.deepEqual(
-    getWhatsAppBrowser({ registered: true }, {}, browsers),
-    ["Android", "Chrome", "13"]
+    getWhatsAppBrowser({ registered: true }, browsers),
+    ["Chrome", "Android", ""]
   );
+  assert.deepEqual(calls, ["Chrome"]);
 });
 
-test("registered WhatsApp Business sessions use the SMB Android identity", () => {
-  const browsers = {
-    SMB_ANDROID: ["SMB", "Chrome", "Android"]
-  };
-  assert.deepEqual(
-    getWhatsAppBrowser(
-      { registered: true },
-      { businessAccount: true },
-      browsers
-    ),
-    browsers.SMB_ANDROID
-  );
-});
-
-test("business identity reports a clear error if unsupported by the installed Baileys build", () => {
+test("registered sessions fail clearly if Android identity is unavailable", () => {
   assert.throws(
-    () => getWhatsAppBrowser({ registered: true }, { businessAccount: true }, {}),
-    /does not expose the SMB Android browser identity/
+    () => getWhatsAppBrowser({ registered: true }, {}),
+    /does not support the Android browser identity/
   );
 });
