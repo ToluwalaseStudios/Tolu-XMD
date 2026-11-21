@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { getWhatsAppBrowser } from "../lib/whatsapp-runtime.js";
+import { getWhatsAppBrowser, rememberUpsertMessages } from "../lib/whatsapp-runtime.js";
+import { createRecentMessageStore } from "../lib/message-store.js";
 
 test("unregistered WhatsApp sessions retain a Web identity for pairing", () => {
   assert.deepEqual(
@@ -30,4 +31,38 @@ test("registered sessions fail clearly if Android identity is unavailable", () =
     () => getWhatsAppBrowser({ registered: true }, {}),
     /does not support the Android browser identity/
   );
+});
+
+
+test("messages.upsert stores complete original messages before dispatch", () => {
+  const store = createRecentMessageStore();
+  const original = {
+    key: { remoteJid: "12345-678@g.us", id: "vo-original-1" },
+    message: {
+      viewOnceMessageV2: {
+        message: {
+          imageMessage: {
+            url: "https://mmg.whatsapp.net/original",
+            directPath: "/v/t62/original",
+            mediaKey: Buffer.from("original-media-key")
+          }
+        }
+      }
+    }
+  };
+  const saved = rememberUpsertMessages(store, {
+    type: "notify",
+    messages: [
+      { key: { remoteJid: "12345-678@g.us", id: "stub-only" }, messageStubType: 2 },
+      original
+    ]
+  });
+
+  assert.equal(saved, 1);
+  const retrieved = store.get({ remoteJid: "12345-678@g.us", id: "vo-original-1" });
+  assert.equal(retrieved, original);
+  const media = retrieved.message.viewOnceMessageV2.message.imageMessage;
+  assert.equal(media.directPath, "/v/t62/original");
+  assert.deepEqual(media.mediaKey, Buffer.from("original-media-key"));
+  assert.equal(store.get({ remoteJid: "12345-678@g.us", id: "stub-only" }), null);
 });
