@@ -7,17 +7,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: |
-          zip -r Tolu-XMD-view-once-fix.zip . \
-            -x ".git/*" "node_modules/*" "*/node_modules/*" \
-               ".env" ".env.*" "*/.env" "*/.env.*" \
-               "auth_info_baileys/*" "*/auth_info_baileys/*" \
-               "data/*" "*/data/*" "coverage/*" "*/coverage/*"
+      - name: Build clean source archive
+        run: |
+          mkdir package
+          git archive HEAD | tar -x -C package
+          rm -f package/.github/workflows/package-view-once-temp.yml
+          find package -type f \( -name '.env' -o -name '.env.*' \) -delete
+          find package -type d \( -name node_modules -o -name auth_info_baileys -o -name coverage \) -prune -exec rm -rf {} +
+          find package -type d -name data -prune -exec rm -rf {} +
+          cd package
+          zip -qr ../Tolu-XMD-view-once-fix.zip .
       - uses: actions/upload-artifact@v4
         with:
-          name: Tolu-XMD-view-once-fix
+          name: Tolu-XMD-view-once-fix-clean
           path: Tolu-XMD-view-once-fix.zip
           if-no-files-found: error
