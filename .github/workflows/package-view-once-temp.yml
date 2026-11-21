@@ -1,0 +1,23 @@
+name: Temporary Tolu-XMD deployment package
+on:
+  push:
+    branches: [main]
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: |
+          zip -r Tolu-XMD-view-once-fix.zip . \
+            -x ".git/*" "node_modules/*" "*/node_modules/*" \
+               ".env" ".env.*" "*/.env" "*/.env.*" \
+               "auth_info_baileys/*" "*/auth_info_baileys/*" \
+               "data/*" "*/data/*" "coverage/*" "*/coverage/*"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tolu-XMD-view-once-fix
+          path: Tolu-XMD-view-once-fix.zip
+          if-no-files-found: error
