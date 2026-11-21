@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { loadCommands } from "../handlers/command-loader.js";
 import {
   buildViewOnceCaption,
+  hasViewOnceWrapper,
   resolveQuotedMessage,
   viewOncePayload
 } from "../commands/custom/vv.js";
@@ -38,6 +39,14 @@ test("recognises direct media nodes carrying the protobuf viewOnce flag", () => 
       mediaType
     );
   }
+});
+
+
+test("command detector accepts Baileys direct-media viewOnce flags", () => {
+  for (const mediaType of ["imageMessage", "videoMessage", "audioMessage", "documentMessage"]) {
+    assert.equal(hasViewOnceWrapper({ [mediaType]: { viewOnce: true } }), true, mediaType);
+  }
+  assert.equal(hasViewOnceWrapper({ imageMessage: { mimetype: "image/jpeg" } }), false);
 });
 
 test("does not classify ordinary media as view-once", () => {
