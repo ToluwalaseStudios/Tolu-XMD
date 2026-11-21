@@ -171,6 +171,41 @@ test("prefers the original stored WhatsApp message over the reduced quoted snipp
   assert.ok(resolved.message.message.viewOnceMessageV2.message.imageMessage.mediaKey);
 });
 
+
+test("resolves the original stored message even when WhatsApp omits the quoted snippet", () => {
+  const original = {
+    key: {
+      remoteJid: "1234567890@lid",
+      remoteJidAlt: "2348012345678@s.whatsapp.net",
+      id: "view-once-lid-2"
+    },
+    message: {
+      viewOnceMessageV2: {
+        message: { videoMessage: { mediaKey: Buffer.from("full-media-key") } }
+      }
+    }
+  };
+  const ctx = {
+    msg: {
+      key: {
+        remoteJid: "2348012345678:4@s.whatsapp.net",
+        id: "command-lid-2"
+      },
+      message: {
+        extendedTextMessage: {
+          contextInfo: { stanzaId: "view-once-lid-2" }
+        }
+      }
+    },
+    getMessageByKey: key => key.id === "view-once-lid-2" ? original : null
+  };
+
+  const resolved = resolveQuotedMessage(ctx);
+  assert.equal(resolved.source, "stored");
+  assert.equal(resolved.message, original);
+  assert.ok(resolved.message.message.viewOnceMessageV2.message.videoMessage.mediaKey);
+});
+
 test("quoted-message fallback uses the best available participant identifier", () => {
   const ctx = {
     jid: "12345-678@g.us",
