@@ -6,28 +6,60 @@ import {
   unwrapMessage
 } from "../../lib/message-utils.js";
 
-function getQuotedMessage(ctx) {
-  const info = getContextInfo(ctx.msg?.message);
-  return info?.stanzaId && info?.quotedMessage ? info.quotedMessage : null;
-}
-
-function getQuotedKey(ctx) {
+function getQuotedReference(ctx) {
   const info = getContextInfo(ctx.msg?.message);
   if (!info?.stanzaId || !info?.quotedMessage) return null;
+  return info;
+}
 
-  const participant = normalizeJid(info.participant || "");
+/**
+ * Prefer the original WebMessageInfo retained by the runtime. WhatsApp's
+ * embedded quotedMessage is only a context snippet and may omit mediaKey or
+ * other fields required by Baileys' media decrypt/reupload pipeline.
+ */
+export function resolveQuotedMessage(ctx) {
+  const info = getQuotedReference(ctx);
+  if (!info) return null;
+
+  const remoteJid = String(ctx.msg?.key?.remoteJid || ctx.jid || "");
+  const id = String(info.stanzaId);
+  const stored = ctx.getMessageByKey?.({ remoteJid, id });
+
+  if (stored?.key?.id === id && stored?.message &&
+      normalizeJid(stored.key.remoteJid) === normalizeJid(remoteJid)) {
+    return {
+      message: stored,
+      key: stored.key,
+      source: "stored"
+    };
+  }
+
+  // Compatibility fallback for messages that are no longer in the short-lived
+  // store. Prefer the richer PN/alternate participant fields when available.
+  const participant = normalizeJid(
+    info.participantPn || info.participantAlt || info.participant || ""
+  );
   const selfIds = [
     ctx.sock?.user?.id,
     ctx.sock?.user?.lid
   ].map(normalizeJid).filter(Boolean);
 
   const key = {
-    remoteJid: String(ctx.msg?.key?.remoteJid || ctx.jid || ""),
-    id: String(info.stanzaId),
+    remoteJid,
+    id,
     fromMe: Boolean(participant && selfIds.includes(participant))
   };
   if (participant) key.participant = participant;
-  return key;
+
+  return {
+    message: {
+      key,
+      message: info.quotedMessage,
+      messageTimestamp: info.timestamp
+    },
+    key,
+    source: "quoted"
+  };
 }
 
 function viewOnceMedia(message) {
@@ -96,18 +128,19 @@ function rememberRecoveredMedia(key, result) {
 }
 
 async function recoverViewOnce(ctx) {
-  const key = getQuotedKey(ctx);
-  if (!key) {
+  const reference = resolveQuotedMessage(ctx);
+  if (!reference) {
     return {
       error: "Reply to a view-once image, video, voice note or document with " +
         ctx.config.prefix + ctx.command + "."
     };
   }
 
+  const { message: originalMessage, key } = reference;
   const cachedResult = getCachedRecoveredMedia(key);
   if (cachedResult) return cachedResult;
 
-  const quoted = getQuotedMessage(ctx);
+  const quoted = originalMessage.message;
   if (!hasViewOnceWrapper(quoted)) {
     return { error: "The replied-to message is not view-once media." };
   }
@@ -122,7 +155,7 @@ async function recoverViewOnce(ctx) {
   let buffer;
   try {
     buffer = await downloadMediaMessage(
-      { key, message: quoted, messageTimestamp: ctx.msg?.messageTimestamp },
+      originalMessage,
       "buffer",
       {},
       { reuploadRequest: ctx.sock.updateMediaMessage }
