@@ -24,6 +24,7 @@ jobs:
                '.env.*' \
                '*/.env' \
                '*/.env.*' \
+               '.github/workflows/package-source.yml' \
                'data/*' \
                '*/data/*'
       - uses: actions/upload-artifact@v4
