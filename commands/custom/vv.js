@@ -2,6 +2,7 @@ import { downloadMediaMessage } from "@whiskeysockets/baileys";
 import { POWERED_FOOTER } from "../../lib/api-client.js";
 import {
   getContextInfo,
+  hasViewOnceMarker,
   normalizeJid,
   unwrapMessage
 } from "../../lib/message-utils.js";
@@ -80,15 +81,11 @@ function viewOnceMedia(message) {
   return null;
 }
 
-function hasViewOnceWrapper(message) {
-  let current = message;
-  for (let depth = 0; current && depth < 10; depth += 1) {
-    if (Object.keys(current).some(key => /viewOnceMessage/i.test(key))) return true;
-    current = current.ephemeralMessage?.message ||
-      current.documentWithCaptionMessage?.message ||
-      current.deviceSentMessage?.message;
-  }
-  return false;
+// Baileys may represent view-once media either with a viewOnceMessage*
+ // wrapper or as a media node carrying the protobuf viewOnce flag. Use the
+ // shared recursive detector so both wire representations are accepted.
+export function hasViewOnceWrapper(message) {
+  return hasViewOnceMarker(message);
 }
 
 const MAX_RECOVERED_MEDIA_ENTRIES = 50;
