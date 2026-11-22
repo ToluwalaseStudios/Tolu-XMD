@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { getWhatsAppBrowser, rememberUpsertMessages } from "../lib/whatsapp-runtime.js";
+import { getWhatsAppBrowser, rememberUpsertMessages, shouldHandleViewOnceReaction } from "../lib/whatsapp-runtime.js";
 import { createRecentMessageStore } from "../lib/message-store.js";
 
 test("unregistered WhatsApp sessions retain a Web identity for pairing", () => {
@@ -65,4 +65,27 @@ test("messages.upsert stores complete original messages before dispatch", () => 
   assert.equal(media.directPath, "/v/t62/original");
   assert.deepEqual(media.mediaKey, Buffer.from("original-media-key"));
   assert.equal(store.get({ remoteJid: "12345-678@g.us", id: "stub-only" }), null);
+});
+
+
+test("view-once reaction trigger accepts only the configured emoji reacted by this account", () => {
+  const seen = new Set();
+  const update = {
+    key: { remoteJid: "12345-678@g.us", id: "view-once-1" },
+    reaction: {
+      text: "⚡",
+      key: { remoteJid: "12345-678@g.us", id: "reaction-1", fromMe: true }
+    }
+  };
+  assert.equal(shouldHandleViewOnceReaction(update, "⚡", seen), true);
+  assert.equal(shouldHandleViewOnceReaction(update, "⚡", seen), false);
+  assert.equal(shouldHandleViewOnceReaction(update, "❤️", new Set()), false);
+  assert.equal(shouldHandleViewOnceReaction({
+    ...update,
+    reaction: { ...update.reaction, key: { ...update.reaction.key, fromMe: false } }
+  }, "⚡", new Set()), false);
+  assert.equal(shouldHandleViewOnceReaction({
+    ...update,
+    reaction: { ...update.reaction, text: "" }
+  }, "⚡", new Set()), false);
 });
