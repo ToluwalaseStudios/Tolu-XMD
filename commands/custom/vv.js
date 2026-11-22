@@ -260,10 +260,10 @@ export default [
       if (!value) {
         const current = await getViewOnceReactionEmoji();
         await ctx.reply(
-          "*VIEW-ONCE REACTION TRIGGER*\\n\\n" +
-          "Status: " + (current ? "ON — " + current : "OFF") + "\\n\\n" +
-          "Set: " + ctx.config.prefix + "vvreact <emoji>\\n" +
-          "Disable: " + ctx.config.prefix + "vvreact off\\n\\n" +
+          "*VIEW-ONCE REACTION TRIGGER*\n\n" +
+          "Status: " + (current ? "ON — " + current : "OFF") + "\n\n" +
+          "Set: " + ctx.config.prefix + "vvreact <emoji>\n" +
+          "Disable: " + ctx.config.prefix + "vvreact off\n\n" +
           "React to a view-once message with your selected emoji and it will be sent to your DM."
         );
         return;
@@ -272,10 +272,10 @@ export default [
       try {
         const saved = await setViewOnceReactionEmoji(value);
         await ctx.reply(saved
-          ? "✅ View-once reaction trigger set to " + saved + ".\\nReact to a view-once message with it and the media will be sent to your DM."
+          ? "✅ View-once reaction trigger set to " + saved + ".\nReact to a view-once message with it and the media will be sent to your DM."
           : "✅ Automatic view-once reactions are now OFF.");
       } catch (error) {
-        await ctx.reply("⚠️ " + error.message + "\\nExample: " + ctx.config.prefix + "vvreact ⚡");
+        await ctx.reply("⚠️ " + error.message + "\nExample: " + ctx.config.prefix + "vvreact ⚡");
       }
     }
   },
