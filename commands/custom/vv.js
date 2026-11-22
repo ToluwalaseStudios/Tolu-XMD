@@ -1,5 +1,6 @@
 import { downloadMediaMessage } from "@whiskeysockets/baileys";
 import { POWERED_FOOTER } from "../../lib/api-client.js";
+import { getViewOnceReactionEmoji, setViewOnceReactionEmoji } from "../../lib/bot-settings.js";
 import {
   getContextInfo,
   hasViewOnceMarker,
@@ -133,7 +134,7 @@ function rememberRecoveredMedia(key, result) {
   }
 }
 
-async function recoverViewOnce(ctx) {
+export async function recoverViewOnce(ctx) {
   const reference = resolveQuotedMessage(ctx);
   if (!reference) {
     return {
@@ -229,7 +230,7 @@ export function buildViewOnceCaption(result) {
   ].join("\n\n");
 }
 
-async function sendBrandedViewOnce(ctx, result) {
+export async function sendBrandedViewOnce(ctx, result) {
   const payload = viewOncePayload(result);
   const caption = buildViewOnceCaption(result);
 
@@ -244,6 +245,40 @@ async function sendBrandedViewOnce(ctx, result) {
 }
 
 export default [
+  {
+    name: "vvreact",
+    aliases: ["vvemoji"],
+    category: "Media & Tools",
+    description: "Set an emoji reaction that automatically sends view-once media to your DM.",
+    run: async ctx => {
+      if (!ctx.owner) {
+        await ctx.reply("⛔ Only the bot owner can configure the view-once reaction.");
+        return;
+      }
+
+      const value = String(ctx.args || "").trim();
+      if (!value) {
+        const current = await getViewOnceReactionEmoji();
+        await ctx.reply(
+          "*VIEW-ONCE REACTION TRIGGER*\\n\\n" +
+          "Status: " + (current ? "ON — " + current : "OFF") + "\\n\\n" +
+          "Set: " + ctx.config.prefix + "vvreact <emoji>\\n" +
+          "Disable: " + ctx.config.prefix + "vvreact off\\n\\n" +
+          "React to a view-once message with your selected emoji and it will be sent to your DM."
+        );
+        return;
+      }
+
+      try {
+        const saved = await setViewOnceReactionEmoji(value);
+        await ctx.reply(saved
+          ? "✅ View-once reaction trigger set to " + saved + ".\\nReact to a view-once message with it and the media will be sent to your DM."
+          : "✅ Automatic view-once reactions are now OFF.");
+      } catch (error) {
+        await ctx.reply("⚠️ " + error.message + "\\nExample: " + ctx.config.prefix + "vvreact ⚡");
+      }
+    }
+  },
   {
     name: "vv",
     category: "Media & Tools",
