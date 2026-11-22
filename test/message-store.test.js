@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRecentMessageStore } from "../lib/message-store.js";
+import { createRecentMessageStore, DEFAULT_MESSAGE_STORE_TTL_MS, DEFAULT_MESSAGE_STORE_MAX_ENTRIES } from "../lib/message-store.js";
 
 test("recent message store retrieves the complete original message by chat and stanza ID", () => {
   const store = createRecentMessageStore();
@@ -57,4 +57,10 @@ test("recent message store ignores incomplete WhatsApp stubs without a message b
     key: { remoteJid: "2348012345678@s.whatsapp.net", id: "stub-1" }
   }), false);
   assert.equal(store.size, 0);
+});
+
+
+test("default message retention is extended to one hour with a bounded store", () => {
+  assert.equal(DEFAULT_MESSAGE_STORE_TTL_MS, 60 * 60 * 1000);
+  assert.equal(DEFAULT_MESSAGE_STORE_MAX_ENTRIES, 2500);
 });
