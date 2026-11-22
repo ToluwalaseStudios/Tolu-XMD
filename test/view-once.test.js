@@ -14,6 +14,8 @@ test("view-once commands load and register both names", async () => {
   const { lookup } = await loadCommands();
   assert.ok(lookup.get("vv"));
   assert.ok(lookup.get("vv2"));
+  assert.ok(lookup.get("vvreact"));
+  assert.ok(lookup.get("vvemoji"));
 });
 
 
@@ -281,4 +283,29 @@ test("view-once recovery caption keeps the supplied original caption and project
   assert.match(caption, /Media extracted from view-once successfully/);
   assert.match(caption, /A saved moment/);
   assert.match(caption, /ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴛᴏʟᴜᴡᴀʟᴀꜱᴇ ꜱᴛᴜᴅɪᴏꜱ/);
+});
+
+
+test("view-once reaction command is owner-only and persists one emoji", async () => {
+  const { lookup } = await loadCommands();
+  const command = lookup.get("vvreact");
+  const replies = [];
+  const ctx = {
+    owner: false,
+    args: "⚡",
+    config: { prefix: "!" },
+    reply: async value => replies.push(String(value))
+  };
+  await command.run(ctx);
+  assert.match(replies.at(-1), /Only the bot owner/);
+
+  ctx.owner = true;
+  await command.run(ctx);
+  assert.match(replies.at(-1), /set to ⚡/);
+  ctx.args = "";
+  await command.run(ctx);
+  assert.match(replies.at(-1), /ON — ⚡/);
+  ctx.args = "off";
+  await command.run(ctx);
+  assert.match(replies.at(-1), /now OFF/);
 });
