@@ -86,6 +86,8 @@ test("each player gets one attempt per question and the first correct answer ear
     assert.equal(state.sent.some(text => text.includes("FINAL LEADERBOARD")), true);
     assert.equal(state.sent.some(text => text.includes("Winner") && text.includes("3 pts")), true);
     assert.equal(state.engine.getActiveGame(groupJid), null);
+    const persisted = await state.store.load();
+    assert.equal(persisted.questionUsage[groupJid].length, 1);
   } finally {
     await rm(state.directory, { recursive: true, force: true });
   }
@@ -102,6 +104,8 @@ test("any group participant can stop a running game and receives only that game'
     assert.equal(await state.engine.stopGame(groupJid), true);
     assert.equal(state.engine.getActiveGame(groupJid), null);
     assert.equal(state.sent.some(text => text.includes("COMPETITION STOPPED")), true);
+    const persisted = await state.store.load();
+    assert.equal(persisted.questionUsage[groupJid], undefined);
     assert.equal(await state.engine.stopGame(groupJid), false);
   } finally {
     await rm(state.directory, { recursive: true, force: true });
