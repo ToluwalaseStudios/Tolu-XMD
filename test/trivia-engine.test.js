@@ -130,6 +130,43 @@ test("answers outside an active game are ignored and start cooldown is enforced"
   }
 });
 
+test("a correct answer cancels its question timer and stale timeout cannot affect the next question", async () => {
+  const state = await setup(2);
+  try {
+    await state.engine.startGame({
+      groupJid, subjects: ["Biology"], count: 2, secondsPerQuestion: 10, send: state.send
+    });
+    const firstQuestionTimer = state.timers.find(item => item.ms === 10000 && !item.cancelled);
+    assert.ok(firstQuestionTimer);
+
+    await state.engine.handleAnswer({
+      groupJid, senderJid: "2348000000002@s.whatsapp.net", name: "Winner", answer: "B"
+    });
+    assert.equal(firstQuestionTimer.cancelled, true);
+    assert.equal(state.engine.getActiveGame(groupJid).questionNumber, 2);
+
+    // Simulate a timeout callback that was already queued when cancellation ran.
+    firstQuestionTimer.fn();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(state.sent.some(text => text.includes("𝐓𝐈𝐌𝐄")), false);
+
+    const nextQuestionDelay = state.timers.find(item => item.ms === 3000 && !item.cancelled);
+    assert.ok(nextQuestionDelay);
+    nextQuestionDelay.fn();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.match(state.sent[2], /Question:\* 2\/2/);
+
+    const secondQuestionTimer = state.timers.filter(item => item.ms === 10000).at(-1);
+    assert.ok(secondQuestionTimer);
+    secondQuestionTimer.fn();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(state.sent.some(text => text.includes("𝐓𝐈𝐌𝐄")), true);
+    assert.equal(state.sent.some(text => text.includes("Verified explanation")), true);
+  } finally {
+    await rm(state.directory, { recursive: true, force: true });
+  }
+});
+
 test("an unanswered question expires, reveals its answer and completes the game", async () => {
   const state = await setup(1);
   try {
