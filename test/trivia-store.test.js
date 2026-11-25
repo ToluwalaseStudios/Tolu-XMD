@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createTriviaStore, normalizeTriviaQuestion } from "../lib/trivia-store.js";
@@ -41,6 +41,30 @@ test("normalizes a question and validates its four options and answer", () => {
   assert.throws(() => normalizeTriviaQuestion(question(2, { answer: "E" })), /A, B, C or D/);
   assert.throws(() => normalizeTriviaQuestion(question(3, { options: ["A", "B"] })), /exactly four/);
   assert.throws(() => normalizeTriviaQuestion(question(4, { difficulty: "impossible" })), /Difficulty/);
+});
+
+test("legacy all-time usage is migrated safely to previous-quiz rotation", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "tolu-trivia-migration-"));
+  try {
+    const filePath = path.join(directory, "trivia.json");
+    await writeFile(filePath, JSON.stringify({
+      version: 1,
+      enabledGroups: [],
+      questions: [],
+      questionUsage: { "120363012345678901-123456@g.us": ["legacy-used-id"] },
+      settings: {}
+    }));
+    const store = createTriviaStore({ filePath });
+    await store.addQuestions([question(1), question(2)]);
+    const group = "120363012345678901-123456@g.us";
+    const selected = await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 2 });
+    assert.equal(selected.questions.length, 2);
+    const migrated = await store.load();
+    assert.equal(migrated.version, 2);
+    assert.deepEqual(migrated.questionUsage, {});
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("group activation is persisted and validates group JIDs", async () => {
@@ -105,47 +129,71 @@ test("category listing exposes custom subjects and subcategories", async () => {
   });
 });
 
-test("question usage is independent per group and avoids repeats until a cycle is exhausted", async () => {
+test("question usage is independent per group and refers only to the previous completed quiz", async () => {
   await withStore(async store => {
     const groupA = "120363012345678901-123456@g.us";
     const groupB = "120363012345678901-654321@g.us";
     await store.addQuestions(Array.from({ length: 5 }, (_, index) => question(index + 1)));
 
     const first = await store.selectQuestions({ groupJid: groupA, subjects: ["Biology"], count: 3 });
+    await store.recordQuestionsUsed({ groupJid: groupA, questionIds: first.questions.map(item => item.id) });
     const second = await store.selectQuestions({ groupJid: groupA, subjects: ["Biology"], count: 2 });
-    const third = await store.selectQuestions({ groupJid: groupA, subjects: ["Biology"], count: 3 });
-    const otherGroup = await store.selectQuestions({ groupJid: groupB, subjects: ["Biology"], count: 3 });
-
     const firstIds = new Set(first.questions.map(item => item.id));
-    assert.equal(firstIds.size, 3);
     assert.equal(second.questions.length, 2);
     assert.equal(second.questions.some(item => firstIds.has(item.id)), false);
+
+    await store.recordQuestionsUsed({ groupJid: groupA, questionIds: second.questions.map(item => item.id) });
+    const third = await store.selectQuestions({ groupJid: groupA, subjects: ["Biology"], count: 3 });
+    const secondIds = new Set(second.questions.map(item => item.id));
     assert.equal(third.questions.length, 3);
+    assert.equal(third.questions.some(item => secondIds.has(item.id)), false);
     assert.equal(new Set(third.questions.map(item => item.id)).size, 3);
+
+    const otherGroup = await store.selectQuestions({ groupJid: groupB, subjects: ["Biology"], count: 3 });
     assert.equal(otherGroup.questions.length, 3);
     assert.equal(otherGroup.questions.some(item => firstIds.has(item.id)), true);
   });
 });
 
-test("question usage carries across mixed-subject and single-subject competitions", async () => {
+
+test("questions absent from the last concluded quiz are used first, then older questions fill the remainder", async () => {
   await withStore(async store => {
     const group = "120363012345678901-123456@g.us";
-    await store.addQuestions([
-      question(1, { subject: "Biology" }),
-      question(2, { subject: "Biology" }),
-      question(3, { subject: "Chemistry" }),
-      question(4, { subject: "Chemistry" }),
-      question(5, { subject: "Physics" })
-    ]);
-    const first = await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 1 });
-    const usedId = first.questions[0].id;
-    const mixed = await store.selectQuestions({
+    await store.addQuestions(Array.from({ length: 32 }, (_, index) => question(index + 1)));
+    const firstQuiz = await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 20 });
+    assert.equal(firstQuiz.questions.length, 20);
+
+    // Selecting a game must not consume its questions until it concludes.
+    await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 20 });
+    const beforeConclusion = await store.load();
+    assert.equal(beforeConclusion.questionUsage[group], undefined);
+
+    await store.recordQuestionsUsed({
       groupJid: group,
-      subjects: ["Biology", "Chemistry", "Physics"],
-      count: 4
+      questionIds: firstQuiz.questions.map(item => item.id)
     });
-    assert.equal(mixed.questions.length, 4);
-    assert.equal(mixed.questions.some(item => item.id === usedId), false);
+
+    const nextQuiz = await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 20 });
+    const previousIds = new Set(firstQuiz.questions.map(item => item.id));
+    const fresh = nextQuiz.questions.filter(item => !previousIds.has(item.id));
+    const repeated = nextQuiz.questions.filter(item => previousIds.has(item.id));
+    assert.equal(nextQuiz.questions.length, 20);
+    assert.equal(fresh.length, 12);
+    assert.equal(repeated.length, 8);
+    assert.equal(new Set(nextQuiz.questions.map(item => item.id)).size, 20);
+    assert.equal(nextQuiz.questions.slice(0, 12).every(item => !previousIds.has(item.id)), true);
+  });
+});
+
+test("a bank smaller than the requested quiz is the only reason to reduce question count", async () => {
+  await withStore(async store => {
+    const group = "120363012345678901-123456@g.us";
+    await store.addQuestions(Array.from({ length: 20 }, (_, index) => question(index + 1)));
+    const result = await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 50 });
+    assert.equal(result.questions.length, 20);
+    assert.equal(result.available, 20);
+    assert.equal(result.reduced, true);
+    assert.equal(new Set(result.questions.map(item => item.id)).size, 20);
   });
 });
 
