@@ -124,6 +124,28 @@ test("question usage is independent per group and avoids repeats until a cycle i
   });
 });
 
+test("question usage carries across mixed-subject and single-subject competitions", async () => {
+  await withStore(async store => {
+    const group = "120363012345678901-123456@g.us";
+    await store.addQuestions([
+      question(1, { subject: "Biology" }),
+      question(2, { subject: "Biology" }),
+      question(3, { subject: "Chemistry" }),
+      question(4, { subject: "Chemistry" }),
+      question(5, { subject: "Physics" })
+    ]);
+    const first = await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 1 });
+    const usedId = first.questions[0].id;
+    const mixed = await store.selectQuestions({
+      groupJid: group,
+      subjects: ["Biology", "Chemistry", "Physics"],
+      count: 4
+    });
+    assert.equal(mixed.questions.length, 4);
+    assert.equal(mixed.questions.some(item => item.id === usedId), false);
+  });
+});
+
 test("question selection filters difficulty and reports when the bank is smaller than requested", async () => {
   await withStore(async store => {
     const group = "120363012345678901-123456@g.us";
