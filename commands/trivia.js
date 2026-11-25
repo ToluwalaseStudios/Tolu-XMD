@@ -269,11 +269,6 @@ const triviaCommand = {
         await ctx.reply("⚠️ " + (messages[result.reason] || "The competition could not be started."));
         return;
       }
-      if (result.reduced) {
-        await ctx.reply("ℹ️ The selected question bank currently has only " + result.questionCount +
-          " unused/available questions for this selection, so this competition will contain " +
-          result.questionCount + " questions rather than repeating a question in the same game.");
-      }
       return;
     }
 
