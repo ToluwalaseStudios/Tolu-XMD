@@ -39,7 +39,6 @@ function parseQuestionBlock(source) {
   return {
     subject: fields.subject,
     subcategory: fields.subcategory || fields.category || "General",
-    difficulty: fields.difficulty || "medium",
     question: fields.question,
     options: {
       A: fields.a || fields.optiona,
@@ -50,29 +49,6 @@ function parseQuestionBlock(source) {
     answer: fields.answer,
     explanation: fields.explanation || ""
   };
-}
-
-function parseStartArguments(source, settings) {
-  const parts = String(source || "").split("|").map(value => value.trim());
-  const subjectInput = parts[0] || "mixed";
-  const subjects = /^(mixed|mixed challenge|all)$/i.test(subjectInput)
-    ? []
-    : subjectInput.split(/[+,]/).map(value => value.trim()).filter(Boolean);
-  const subcategory = parts[1] && !/^all$/i.test(parts[1]) ? parts[1] : "";
-  const difficulty = (parts[2] || "mixed").toLowerCase();
-  const count = parts[3] ? Number(parts[3]) : settings.questionCount;
-  const secondsPerQuestion = parts[4] ? Number(parts[4]) : settings.secondsPerQuestion;
-
-  if (!Number.isInteger(count) || count < 1 || count > 50) {
-    throw new Error("Question count must be a whole number from 1 to 50.");
-  }
-  if (!Number.isInteger(secondsPerQuestion) || secondsPerQuestion < 10 || secondsPerQuestion > 60) {
-    throw new Error("Time per question must be between 10 and 60 seconds.");
-  }
-  if (!["mixed", "easy", "medium", "hard", "expert"].includes(difficulty)) {
-    throw new Error("Difficulty must be Easy, Medium, Hard, Expert or Mixed.");
-  }
-  return { subjects, subcategory, difficulty, count, secondsPerQuestion };
 }
 
 async function readImportFile(ctx) {
@@ -131,8 +107,7 @@ function helpText(prefix) {
     "┃",
     "┃ *PARTICIPANTS*",
     "┃ ◈ " + prefix + "trivia — Open Trivia menu",
-    "┃ ◈ " + prefix + "trivia start — View quiz categories",
-    "┃ ◈ " + prefix + "trivia start Biology | all | mixed | 20 | 25",
+    "┃ ◈ " + prefix + "trivia start — Start the guided quiz setup",
     "┃ ◈ " + prefix + "trivia stop — Stop the current game",
     "┃ ◈ " + prefix + "trivia leaderboard — View live scores",
     "┃",
@@ -144,8 +119,7 @@ function helpText(prefix) {
     "┃ ◈ " + prefix + "trivia list / edit / remove / settings",
     "╰━━━━━━━━━━━━━━━━━━⬣",
     "",
-    "Difficulty points: Easy 1 · Medium 2 · Hard 3 · Expert 5",
-    "Each participant gets one answer per question. The first correct answer earns the points.",
+    "Each correct answer earns 1 point. The first correct answer wins that question.",
     "The leaderboard resets when a new competition starts.",
     "⚡ POWERED BY TOLUWALASE STUDIOS"
   ].join("\n");
@@ -238,42 +212,28 @@ const triviaCommand = {
         await ctx.reply("🔒 Trivia is not enabled for this group. Ask the bot owner to enable it.");
         return;
       }
-      const settings = await triviaStore.getSettings();
-      if (!actionArgs) {
-        const categories = await triviaStore.getCategories();
-        await ctx.reply(
-          "*CHOOSE YOUR TRIVIA QUIZ*\n\n" + categorySummary(categories) +
-          "\n\n*Format:* " + prefix + "trivia start Subject | Subcategory | Difficulty | Questions | Seconds" +
-          "\n*Example:* " + prefix + "trivia start Biology | Cell Biology | hard | 20 | 25" +
-          "\n*Mixed subjects:* " + prefix + "trivia start Physics + Chemistry + Biology | all | mixed | 20 | 25"
-        );
+      if (actionArgs) {
+        await ctx.reply("Use *" + prefix + "trivia start* without extra options. I’ll guide you through subject, topic and question count.");
         return;
       }
-
-      let options;
-      try {
-        options = parseStartArguments(actionArgs, settings);
-      } catch (error) {
-        await ctx.reply("⚠️ " + error.message);
-        return;
-      }
-      const result = await triviaEngine.startGame({
+      const result = await triviaEngine.beginSetup({
         groupJid: ctx.jid,
-        ...options,
+        senderJid: ctx.senderJid,
         send: payload => ctx.sock.sendMessage(ctx.jid, payload)
       });
       if (!result.ok) {
-        const messages = {
-          already_running: "A Trivia competition is already running in this group.",
-          cooldown: "Please wait " + Math.ceil(result.remainingMs / 1000) + " seconds before starting another competition.",
-          empty_bank: "There are no approved questions matching that selection yet. Choose another category or ask the owner to add questions.",
-          invalid_difficulty: "That difficulty is not supported.",
-          invalid_time: "Time per question must be between 10 and 60 seconds.",
-          send_failed: "WhatsApp could not send the first question. Please try again shortly."
-        };
-        await ctx.reply("⚠️ " + (messages[result.reason] || "The competition could not be started."));
-        return;
+        const message = result.reason === "already_running"
+          ? "A Trivia competition is already running in this group."
+          : "There are no approved questions in the Trivia bank yet. Ask the owner to add questions.";
+        await ctx.reply("⚠️ " + message);
       }
+      return;
+    }
+
+    if (action === "cancel") {
+      if (!(await groupOnly(ctx))) return;
+      const cancelled = triviaEngine.cancelSetup({ groupJid: ctx.jid, senderJid: ctx.senderJid });
+      await ctx.reply(cancelled ? "Trivia setup cancelled." : "You do not have an active Trivia setup.");
       return;
     }
 
@@ -304,7 +264,7 @@ const triviaCommand = {
       if (!actionArgs) {
         await ctx.reply(
           "*ADD ONE QUESTION*\n\n" +
-          "Subject: Biology\nSubcategory: Cell Biology\nDifficulty: Hard\n" +
+          "Subject: Biology\nSubcategory: Cell Biology\n" +
           "Question: Your question here?\nA: First option\nB: Second option\n" +
           "C: Third option\nD: Fourth option\nAnswer: B\nExplanation: Why B is correct."
         );
@@ -341,7 +301,7 @@ const triviaCommand = {
       if (!(await ownerOnly(ctx))) return;
       await ctx.reply(
         "Save a JSON file named *trivia-questions.json* with this structure:\n\n" +
-        '{"questions":[{"subject":"Biology","subcategory":"Cell Biology","difficulty":"hard",' +
+        '{"questions":[{"subject":"Biology","subcategory":"Cell Biology",' +
         '"question":"Which organelle modifies and packages proteins?","options":' +
         '{"A":"Lysosome","B":"Golgi apparatus","C":"Ribosome","D":"Nucleolus"},' +
         '"answer":"B","explanation":"The Golgi apparatus modifies, sorts and packages proteins."}]}'
@@ -368,7 +328,7 @@ const triviaCommand = {
       const categories = await triviaStore.getCategories();
       const questionRows = questions.slice(0, 20).map(item =>
         "ID: " + item.id + "\n" + item.subject + " · " + item.subcategory +
-        " · " + item.difficulty.toUpperCase() + "\n" + item.question.slice(0, 100)
+        "\n" + item.question.slice(0, 100)
       );
       await ctx.reply(
         "*OFFICIAL QUESTION BANK*\n\nTotal questions: " + questions.length +
