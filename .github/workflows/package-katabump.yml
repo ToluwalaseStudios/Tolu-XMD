@@ -15,7 +15,7 @@ jobs:
       - name: Build clean deployment archive
         run: |
           mkdir -p /tmp/tolu-package
-          rsync -a ./ /tmp/tolu-package/Tolu-XMD/ \
+          rsync -a \
             --exclude='.git/' \
             --exclude='.github/' \
             --exclude='node_modules/' \
@@ -23,7 +23,8 @@ jobs:
             --exclude='auth_info_baileys/' \
             --exclude='.env' \
             --exclude='*.log' \
-            --exclude='*.zip'
+            --exclude='*.zip' \
+            ./ /tmp/tolu-package/Tolu-XMD/
           cd /tmp/tolu-package
           zip -qr Tolu-XMD-KataBump.zip Tolu-XMD
           unzip -t Tolu-XMD-KataBump.zip
