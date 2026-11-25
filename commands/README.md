@@ -24,6 +24,18 @@ The public release contains **184 commands across 18 menu sections**.
 | Owner Tools | runtime |
 
 
+### Trivia Arena
+
+Trivia is a group-scoped competition system. The bot owner enables or disables each group with `!trivia enable` and `!trivia disable`; members of enabled groups can start a competition with `!trivia start` and stop it with `!trivia stop`, even while the bot is in Private mode. The Private-mode exception is limited to the Trivia command and a restricted Trivia-only `!menu`.
+
+The owner supplies and manages the official question bank:
+- `!trivia add` adds one question using Subject, Subcategory, Difficulty, Question, A–D, Answer and optional Explanation fields.
+- `!trivia import` imports a JSON document quoted in the command message (up to 2 MB and 5,000 questions per import).
+- `!trivia list`, `!trivia edit <id>`, `!trivia remove <id>`, `!trivia export` and `!trivia template` manage the bank.
+- `!trivia settings` shows defaults; the owner can change question count, answer time, inter-question delay and start cooldown.
+
+The bank, enabled-group list, settings and per-group non-repeat tracking are stored in `data/trivia-arena.json`. Live scores exist only for the current competition; they are not carried into later games. Each group has at most one active game. Questions are not repeated within a game, and each group's question cycle uses unused questions before starting a new cycle.
+
 ### Buildapp project downloads
 
 - `!buildapp <description>` creates a web app and attempts to retrieve the generated session files as `Buildapp-project.zip`.
