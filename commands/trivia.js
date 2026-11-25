@@ -177,7 +177,7 @@ const triviaCommand = {
   allowInPrivateMode: true,
   run: async ctx => {
     const input = String(ctx.args || "").trim();
-    const [rawAction = "menu", ...rest] = input.split(/\s+/);
+    const [rawAction = "menu"] = input.split(/\s+/);
     const action = rawAction.toLowerCase();
     const actionArgs = input.slice(rawAction.length).trim();
     const prefix = ctx.config.prefix || "!";
@@ -195,7 +195,7 @@ const triviaCommand = {
       const active = isGroup(ctx) ? triviaEngine.getActiveGame(ctx.jid) : null;
       await ctx.reply(
         helpText(prefix) + "\n\n*AVAILABLE CATEGORIES*\n" + categorySummary(categories) +
-        (active ? "\n\n<escape>⚡</escape> A competition is currently running: " +
+        (active ? "\n\n⚡ A competition is currently running: " +
           active.label + " (" + active.questionNumber + "/" + active.questionCount + ")." : "")
       );
       return;
