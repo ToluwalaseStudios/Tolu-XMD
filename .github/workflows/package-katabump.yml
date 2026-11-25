@@ -21,7 +21,10 @@ jobs:
             --exclude='node_modules/' \
             --exclude='data/' \
             --exclude='auth_info_baileys/' \
+            --exclude='sessions/' \
             --exclude='.env' \
+            --include='.env.example' \
+            --exclude='.env.*' \
             --exclude='*.log' \
             --exclude='*.zip' \
             ./ /tmp/tolu-package/Tolu-XMD/
