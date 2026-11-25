@@ -34,7 +34,7 @@ The owner supplies and manages the official question bank:
 - `!trivia list`, `!trivia edit <id>`, `!trivia remove <id>`, `!trivia export` and `!trivia template` manage the bank.
 - `!trivia settings` shows defaults; the owner can change question count, answer time, inter-question delay and start cooldown.
 
-The bank, enabled-group list, settings and per-group non-repeat tracking are stored in `data/trivia-arena.json`. Live scores exist only for the current competition; they are not carried into later games. Each group has at most one active game. Questions are not repeated within a game, and each group's question cycle uses unused questions before starting a new cycle.
+The bank, enabled-group list, settings and per-group non-repeat tracking are stored in `data/trivia-arena.json`. Live scores exist only for the current competition; they are not carried into later games. Each group has at most one active game. Questions are never repeated within the same game. For each enabled group, questions absent from the immediately previous completed quiz are selected first; if there are not enough, questions from that previous quiz fill the remaining slots. A stopped or interrupted game does not advance the rotation. The requested count is reduced only when the selected question bank itself contains fewer questions.
 
 ### Buildapp project downloads
 
