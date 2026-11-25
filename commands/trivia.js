@@ -229,7 +229,7 @@ const triviaCommand = {
     }
 
     if (action === "start") {
-      if (!groupOnly(ctx)) return;
+      if (!(await groupOnly(ctx))) return;
       if (!(await triviaStore.isGroupEnabled(ctx.jid))) {
         await ctx.reply("🔒 Trivia is not enabled for this group. Ask the bot owner to enable it.");
         return;
@@ -278,7 +278,7 @@ const triviaCommand = {
     }
 
     if (action === "stop") {
-      if (!groupOnly(ctx)) return;
+      if (!(await groupOnly(ctx))) return;
       if (!(await triviaStore.isGroupEnabled(ctx.jid))) {
         await ctx.reply("Trivia is not enabled for this group.");
         return;
@@ -289,7 +289,7 @@ const triviaCommand = {
     }
 
     if (action === "leaderboard") {
-      if (!groupOnly(ctx)) return;
+      if (!(await groupOnly(ctx))) return;
       if (!(await triviaStore.isGroupEnabled(ctx.jid))) {
         await ctx.reply("Trivia is not enabled for this group.");
         return;
@@ -300,7 +300,7 @@ const triviaCommand = {
     }
 
     if (action === "add") {
-      if (!ownerOnly(ctx)) return;
+      if (!(await ownerOnly(ctx))) return;
       if (!actionArgs) {
         await ctx.reply(
           "*ADD ONE QUESTION*\n\n" +
@@ -321,7 +321,7 @@ const triviaCommand = {
     }
 
     if (action === "import") {
-      if (!ownerOnly(ctx)) return;
+      if (!(await ownerOnly(ctx))) return;
       try {
         const questions = await readImportFile(ctx);
         const result = await triviaStore.addQuestions(questions);
@@ -338,7 +338,7 @@ const triviaCommand = {
     }
 
     if (action === "template") {
-      if (!ownerOnly(ctx)) return;
+      if (!(await ownerOnly(ctx))) return;
       await ctx.reply(
         "Save a JSON file named *trivia-questions.json* with this structure:\n\n" +
         '{"questions":[{"subject":"Biology","subcategory":"Cell Biology","difficulty":"hard",' +
@@ -350,7 +350,7 @@ const triviaCommand = {
     }
 
     if (action === "export") {
-      if (!ownerOnly(ctx)) return;
+      if (!(await ownerOnly(ctx))) return;
       const questions = await triviaStore.listQuestions();
       const data = Buffer.from(JSON.stringify({ questions }, null, 2), "utf8");
       await ctx.sock.sendMessage(ctx.jid, {
@@ -362,7 +362,7 @@ const triviaCommand = {
     }
 
     if (action === "list") {
-      if (!ownerOnly(ctx)) return;
+      if (!(await ownerOnly(ctx))) return;
       const subject = actionArgs;
       const questions = await triviaStore.listQuestions(subject ? { subject } : {});
       const categories = await triviaStore.getCategories();
@@ -375,14 +375,14 @@ const triviaCommand = {
     }
 
     if (action === "remove") {
-      if (!ownerOnly(ctx)) return;
+      if (!(await ownerOnly(ctx))) return;
       const removed = await triviaStore.removeQuestion(actionArgs);
       await ctx.reply(removed ? "✅ Question removed from the official bank." : "No question was found with that ID.");
       return;
     }
 
     if (action === "settings") {
-      if (!ownerOnly(ctx)) return;
+      if (!(await ownerOnly(ctx))) return;
       const [key, rawValue] = actionArgs.split(/\s+/, 2);
       if (!key) {
         const settings = await triviaStore.getSettings();
