@@ -138,7 +138,7 @@ test("an unanswered question expires, reveals its answer and completes the game"
     const timer = state.timers.find(item => item.ms === 10000 && !item.cancelled);
     assert.ok(timer);
     timer.fn();
-    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setTimeout(resolve, 30));
     assert.equal(state.sent.some(text => text.includes("𝐓𝐈𝐌𝐄")), true);
     assert.equal(state.sent.some(text => text.includes("Answer:* B")), true);
     assert.equal(state.sent.some(text => text.includes("FINAL LEADERBOARD")), true);
