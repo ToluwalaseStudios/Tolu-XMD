@@ -268,7 +268,8 @@ const triviaCommand = {
           cooldown: "Please wait " + Math.ceil(result.remainingMs / 1000) + " seconds before starting another competition.",
           empty_bank: "There are no approved questions matching that selection yet. Choose another category or ask the owner to add questions.",
           invalid_difficulty: "That difficulty is not supported.",
-          invalid_time: "Time per question must be between 10 and 60 seconds."
+          invalid_time: "Time per question must be between 10 and 60 seconds.",
+          send_failed: "WhatsApp could not send the first question. Please try again shortly."
         };
         await ctx.reply("⚠️ " + (messages[result.reason] || "The competition could not be started."));
         return;
