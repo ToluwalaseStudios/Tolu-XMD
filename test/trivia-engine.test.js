@@ -53,7 +53,7 @@ test("starts one group competition and sends the first question", async () => {
     assert.equal(result.ok, true);
     assert.equal(result.questionCount, 2);
     assert.equal(state.sent.length, 1);
-    assert.match(state.sent[0], /TRIVIA/);
+    assert.match(state.sent[0], /𝐓𝐑𝐈𝐕𝐈𝐀/);
     assert.match(state.sent[0], /Question:\* 1\/2/);
     assert.match(state.sent[0], /Reply A, B, C or D/);
     assert.equal(state.engine.getActiveGame(groupJid).questionNumber, 1);
