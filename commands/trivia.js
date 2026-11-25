@@ -15,7 +15,7 @@ function bulkDeleteKey(ctx) {
 }
 
 function parseBulkDeleteScope(input) {
-  const [kindRaw = "", ...rest] = String(input || "").trim().split(/\\s+/);
+  const [kindRaw = "", ...rest] = String(input || "").trim().split(/\s+/);
   const kind = kindRaw.toLowerCase();
   const value = rest.join(" ").trim();
   if (kind === "subject" && value) return { subject: value };
@@ -168,7 +168,7 @@ function helpText(prefix) {
     "Each correct answer earns 1 point. The first correct answer wins the question.",
     "Bulk deletion shows a preview and requires a confirmation code.",
     "⚡ POWERED BY TOLUWALASE STUDIOS"
-  ].join("\\n");
+  ].join("\n");
 }
 
 function liveLeaderboard(game) {
@@ -408,7 +408,7 @@ const triviaCommand = {
 
     if (action === "delete") {
       if (!(await ownerOnly(ctx))) return;
-      const [modeRaw = "", ...rest] = actionArgs.split(/\\s+/);
+      const [modeRaw = "", ...rest] = actionArgs.split(/\s+/);
       const mode = modeRaw.toLowerCase();
       const value = rest.join(" ").trim();
       const key = bulkDeleteKey(ctx);
@@ -433,8 +433,8 @@ const triviaCommand = {
         pendingBulkDeletes.delete(key);
         try {
           const result = await triviaStore.removeQuestions({ ids: pending.ids });
-          await ctx.reply("✅ *BULK DELETION COMPLETE*\\n\\nQuestions deleted: " + result.removed +
-            "\\nQuestions remaining: " + result.remaining);
+          await ctx.reply("✅ *BULK DELETION COMPLETE*\n\nQuestions deleted: " + result.removed +
+            "\nQuestions remaining: " + result.remaining);
         } catch (error) {
           await ctx.reply("⚠️ Bulk deletion failed: " + error.message);
         }
@@ -443,11 +443,11 @@ const triviaCommand = {
 
       const scope = parseBulkDeleteScope(actionArgs);
       if (!scope) {
-        await ctx.reply("*BULK DELETE USAGE*\\n\\n" +
-          prefix + "trivia delete subject Biology\\n" +
-          prefix + "trivia delete topic Biology|Cell Biology\\n" +
-          prefix + "trivia delete ids ID1,ID2\\n" +
-          prefix + "trivia delete all\\n\\n" +
+        await ctx.reply("*BULK DELETE USAGE*\n\n" +
+          prefix + "trivia delete subject Biology\n" +
+          prefix + "trivia delete topic Biology|Cell Biology\n" +
+          prefix + "trivia delete ids ID1,ID2\n" +
+          prefix + "trivia delete all\n\n" +
           "Confirm with the preview code, or use " + prefix + "trivia delete cancel.");
         return;
       }
@@ -468,11 +468,11 @@ const triviaCommand = {
       pendingBulkDeletes.set(key, { code, ids, expiresAt: Date.now() + BULK_DELETE_CONFIRM_TTL_MS });
       const label = scope.all ? "ENTIRE QUESTION BANK" : scope.ids ? "SELECTED QUESTION IDs" :
         scope.subcategory ? scope.subject + " · " + scope.subcategory : scope.subject;
-      await ctx.reply("⚠️ *BULK DELETION PREVIEW*\\n\\nScope: " + label +
-        "\\nQuestions to delete: " + ids.length +
-        "\\nQuestions that will remain: " + (total - ids.length) +
-        "\\n\\nThis action cannot be undone. To proceed, send:\\n*" +
-        prefix + "trivia delete confirm " + code + "*\\n\\n" +
+      await ctx.reply("⚠️ *BULK DELETION PREVIEW*\n\nScope: " + label +
+        "\nQuestions to delete: " + ids.length +
+        "\nQuestions that will remain: " + (total - ids.length) +
+        "\n\nThis action cannot be undone. To proceed, send:\n*" +
+        prefix + "trivia delete confirm " + code + "*\n\n" +
         "Code expires in 2 minutes. Use *" + prefix + "trivia delete cancel* to cancel.");
       return;
     }
