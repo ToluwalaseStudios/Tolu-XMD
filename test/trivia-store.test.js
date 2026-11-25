@@ -140,11 +140,9 @@ test("questions absent from the last concluded quiz are used first, then older q
     assert.equal(firstQuiz.questions.length, 20);
 
     // Selecting a game must not consume its questions until it concludes.
-    const samePreview = await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 20 });
-    assert.deepEqual(
-      new Set([...samePreview.questions.map(item => item.id)].sort()),
-      new Set([...firstQuiz.questions.map(item => item.id)].sort())
-    );
+    await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 20 });
+    const beforeConclusion = await store.load();
+    assert.equal(beforeConclusion.questionUsage[group], undefined);
 
     await store.recordQuestionsUsed({
       groupJid: group,
