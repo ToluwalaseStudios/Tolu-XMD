@@ -59,6 +59,10 @@ test("view-once reaction trigger accepts only the configured emoji reacted by th
     ...update,
     reaction: { ...update.reaction, key: { ...update.reaction.key, fromMe: false } }
   }, "⚡", new Set()), false);
+  assert.equal(shouldHandleViewOnceReaction({
+    ...update,
+    reaction: { ...update.reaction, text: "" }
+  }, "⚡", new Set()), false);
 });
 
 test("Private mode bypass is limited to commands explicitly marked for independent access", () => {
