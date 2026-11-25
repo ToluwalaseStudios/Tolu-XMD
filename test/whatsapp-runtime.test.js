@@ -44,6 +44,8 @@ test("messages.upsert stores complete original messages before dispatch", () => 
   const retrieved = store.get({ remoteJid: "12345-678@g.us", id: "vo-original-1" });
   assert.equal(retrieved, original);
   assert.equal(retrieved.message.viewOnceMessageV2.message.imageMessage.directPath, "/v/t62/original");
+  assert.deepEqual(retrieved.message.viewOnceMessageV2.message.imageMessage.mediaKey, Buffer.from("original-media-key"));
+  assert.equal(store.get({ remoteJid: "12345-678@g.us", id: "stub-only" }), null);
 });
 
 test("view-once reaction trigger accepts only the configured emoji reacted by this account", () => {
