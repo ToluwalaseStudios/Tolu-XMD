@@ -109,6 +109,7 @@ test("bulk deletion requires an owner confirmation code and deletes only the pre
   await trivia.run({ ...baseContext, owner: true, args: "delete cancel" });
   assert.match(replies.at(-1), /cancelled/);
   assert.equal((await triviaStore.getStats()).questionCount, 1);
+  await triviaStore.removeQuestions({ subject: "Biology" });
 });
 
 test("owner can add a question and members can start and stop a competition", async () => {
