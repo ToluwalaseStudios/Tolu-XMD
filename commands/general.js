@@ -51,7 +51,7 @@ const commands = [
           "┃ Open the group quiz arena, choose a subject and compete for the current game's leaderboard.",
           "╰━━━━━━━━━━━━━━━━━━⬣",
           "⚡ POWERED BY TOLUWALASE STUDIOS"
-        ].join("\\n"));
+        ].join("\n"));
         return;
       }
       const menu = buildMenu({ commands: ctx.commands, config: ctx.config, theme: ctx.theme });
