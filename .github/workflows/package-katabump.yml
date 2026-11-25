@@ -28,8 +28,9 @@ jobs:
             --exclude='*.log' \
             --exclude='*.zip' \
             ./ /tmp/tolu-package/Tolu-XMD/
+          cd /tmp/tolu-package/Tolu-XMD
+          zip -qr ../Tolu-XMD-KataBump.zip .
           cd /tmp/tolu-package
-          zip -qr Tolu-XMD-KataBump.zip Tolu-XMD
           unzip -t Tolu-XMD-KataBump.zip
 
       - name: Upload KataBump deployment ZIP
