@@ -67,6 +67,10 @@ test("owner can add a question and members can start and stop a competition", as
   await trivia.run({ ...baseContext, owner: true, args: "add\n" + block });
   assert.match(replies.at(-1), /Question added/);
   assert.equal((await triviaStore.listQuestions()).length, 1);
+  const questionId = (await triviaStore.listQuestions())[0].id;
+  const editedBlock = block.replace("Which organelle modifies and packages proteins?", "Which organelle sorts and packages proteins?");
+  await trivia.run({ ...baseContext, owner: true, args: "edit " + questionId + "\\n" + editedBlock });
+  assert.match(replies.at(-1), /updated in the official bank/);
 
   await trivia.run({
     ...baseContext,
