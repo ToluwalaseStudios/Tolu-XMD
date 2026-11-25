@@ -75,7 +75,8 @@ test("each player gets one attempt per question and the first correct answer ear
     assert.equal(await state.engine.handleAnswer({
       groupJid, senderJid: "2348000000001@s.whatsapp.net", name: "Wrong Player", answer: "B"
     }), true);
-    assert.equal(state.engine.getActiveGame(groupJid).participantCount, 1);\n    assert.equal(state.engine.getActiveGame(groupJid).scores[0].points, 0);
+    assert.equal(state.engine.getActiveGame(groupJid).participantCount, 1);
+    assert.equal(state.engine.getActiveGame(groupJid).scores[0].points, 0);
 
     await state.engine.handleAnswer({
       groupJid, senderJid: "2348000000002@s.whatsapp.net", name: "Winner", answer: "B"
