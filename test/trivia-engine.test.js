@@ -135,7 +135,7 @@ test("an unanswered question expires, reveals its answer and completes the game"
     assert.ok(timer);
     timer.fn();
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(state.sent.some(text => text.includes("TIME'S UP")), true);
+    assert.equal(state.sent.some(text => text.includes("𝐓𝐈𝐌𝐄")), true);
     assert.equal(state.sent.some(text => text.includes("Answer:* B")), true);
     assert.equal(state.sent.some(text => text.includes("FINAL LEADERBOARD")), true);
     assert.equal(state.engine.getActiveGame(groupJid), null);
