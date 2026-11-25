@@ -140,3 +140,20 @@ test("recognises view-once wrappers nested in ephemeral and document caption wra
     }
   }), true);
 });
+test("message sender resolution prefers the phone JID when alternate group identities differ", async () => {
+  const { getMessageSender } = await import("../lib/message-utils.js");
+  assert.equal(getMessageSender({
+    key: {
+      remoteJid: "12345-678@g.us",
+      participant: "2348000000001@s.whatsapp.net",
+      participantAlt: "998877@lid"
+    }
+  }), "2348000000001@s.whatsapp.net");
+  assert.equal(getMessageSender({
+    key: {
+      remoteJid: "12345-678@g.us",
+      participant: "998877@lid",
+      participantAlt: "2348000000002@s.whatsapp.net"
+    }
+  }), "2348000000002@s.whatsapp.net");
+});
