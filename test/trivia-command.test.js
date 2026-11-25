@@ -63,6 +63,54 @@ test("plain !trivia in the owner's personal DM still opens the existing menu", a
   assert.match(personalReplies[0], /AVAILABLE CATEGORIES/);
 });
 
+test("Trivia menu lists the question-bank and bulk-delete commands", async () => {
+  const ownerReplies = [];
+  await trivia.run({ ...baseContext, owner: true, args: "help", reply: async value => ownerReplies.push(String(value)) });
+  assert.match(ownerReplies.at(-1), /trivia import/);
+  assert.match(ownerReplies.at(-1), /trivia delete subject/);
+  assert.match(ownerReplies.at(-1), /trivia delete topic/);
+  assert.match(ownerReplies.at(-1), /trivia delete ids/);
+  assert.match(ownerReplies.at(-1), /trivia delete all/);
+  assert.match(ownerReplies.at(-1), /trivia delete confirm/);
+});
+
+test("bulk deletion requires an owner confirmation code and deletes only the previewed questions", async () => {
+  const add = index => ({
+    subject: "Biology",
+    subcategory: index === 1 ? "Cell Biology" : "Genetics",
+    question: "Bulk delete test question " + index + "?",
+    options: { A: "A", B: "B", C: "C", D: "D" },
+    answer: "A"
+  });
+  await triviaStore.addQuestions([add(1), add(2)]);
+  const before = await triviaStore.getStats();
+  await trivia.run({ ...baseContext, owner: false, args: "delete all" });
+  assert.match(replies.at(-1), /Only the bot owner/);
+  assert.equal((await triviaStore.getStats()).questionCount, before.questionCount);
+
+  await trivia.run({ ...baseContext, owner: true, args: "delete topic Biology|Cell Biology" });
+  const preview = replies.at(-1);
+  assert.match(preview, /Questions to delete: 1/);
+  const code = preview.match(/trivia delete confirm ([A-F0-9]+)/)?.[1];
+  assert.ok(code);
+  await trivia.run({ ...baseContext, owner: true, args: "delete confirm WRONG" });
+  assert.match(replies.at(-1), /does not match/);
+  assert.equal((await triviaStore.getStats()).questionCount, before.questionCount);
+  await trivia.run({ ...baseContext, owner: true, args: "delete confirm " + code });
+  assert.match(replies.at(-1), /Questions deleted: 1/);
+  const remaining = await triviaStore.listQuestions();
+  assert.equal(remaining.some(item => item.subcategory === "Cell Biology"), false);
+  assert.equal(remaining.some(item => item.subcategory === "Genetics"), true);
+
+  await trivia.run({ ...baseContext, owner: true, args: "delete all" });
+  const allPreview = replies.at(-1);
+  const allCode = allPreview.match(/trivia delete confirm ([A-F0-9]+)/)?.[1];
+  assert.ok(allCode);
+  await trivia.run({ ...baseContext, owner: true, args: "delete cancel" });
+  assert.match(replies.at(-1), /cancelled/);
+  assert.equal((await triviaStore.getStats()).questionCount, 1);
+});
+
 test("owner can add a question and members can start and stop a competition", async () => {
   const block = [
     "Subject: Biology",
