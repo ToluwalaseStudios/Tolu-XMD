@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { createTriviaStore } from "../lib/trivia-store.js";
 import { createTriviaEngine } from "../lib/trivia-engine.js";
+import { formatTriviaMath } from "../lib/trivia-math-format.js";
 
 const groupJid = "120363012345678901-123456@g.us";
 
@@ -161,4 +162,11 @@ test("a question pool smaller than the requested count is reduced without duplic
   } finally {
     await rm(state.directory, { recursive: true, force: true });
   }
+});
+
+test("formats common LaTeX expressions as readable WhatsApp text", () => {
+  assert.equal(formatTriviaMath("$5\\\\ \\\\text{Hz}$"), "5 Hz");
+  assert.equal(formatTriviaMath("$10.0\\\\ \\\\text{m s}^{-1}$"), "10.0 m s⁻¹");
+  assert.equal(formatTriviaMath("$\\\\frac{1}{2}mv^2$"), "(1)/(2)mv²");
+  assert.equal(formatTriviaMath("$\\\\sqrt{25}+\\\\alpha$"), "√(25)+α");
 });
