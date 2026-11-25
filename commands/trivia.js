@@ -179,7 +179,10 @@ const triviaCommand = {
       if (!(await ownerOnly(ctx)) || !(await groupOnly(ctx))) return;
       const enabled = action === "enable";
       await triviaStore.setGroupEnabled(ctx.jid, enabled);
-      if (!enabled) await triviaEngine.stopGame(ctx.jid);
+      if (!enabled) {
+        await triviaEngine.stopGame(ctx.jid);
+        triviaEngine.cancelGroupSetups(ctx.jid);
+      }
       await ctx.reply(enabled
         ? "✅ *TRIVIA ENABLED*\nThis group can now start its own competitions, even when the bot is in Private mode."
         : "🔒 *TRIVIA DISABLED*\nThis group can no longer start Trivia competitions.");
