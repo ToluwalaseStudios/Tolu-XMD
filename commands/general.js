@@ -1,4 +1,5 @@
 import { buildMenu } from "../lib/menu.js";
+import { triviaStore } from "../lib/trivia-store.js";
 
 function formatDuration(seconds) {
   let remaining = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -34,7 +35,25 @@ const commands = [
     aliases: ["helpme"],
     category: "General",
     description: "Show the branded Toluwalase-XMD menu and available command sections.",
+    allowInPrivateMode: true,
     run: async ctx => {
+      if (ctx.mode === "private" && !ctx.owner) {
+        if (!String(ctx.jid || "").endsWith("@g.us") ||
+            !(await triviaStore.isGroupEnabled(ctx.jid))) {
+          await ctx.reply("🔒 The bot is in Private mode. Only the Trivia menu is available in groups enabled by the owner.");
+          return;
+        }
+        await ctx.reply([
+          "╭━━〔 🧠 𝕿𝖔𝖑𝖚𝖜𝖆𝖑𝖆𝖘𝖊 𝐌𝐄𝐍𝐔 〕━━┈⊷",
+          "┃ *TRIVIA ARENA*",
+          "┃ ◈ " + ctx.config.prefix + "trivia",
+          "┃",
+          "┃ Open the group quiz arena, choose a subject and compete for the current game's leaderboard.",
+          "╰━━━━━━━━━━━━━━━━━━⬣",
+          "⚡ POWERED BY TOLUWALASE STUDIOS"
+        ].join("\\n"));
+        return;
+      }
       const menu = buildMenu({ commands: ctx.commands, config: ctx.config, theme: ctx.theme });
       if (ctx.config.imageUrl) {
         try {
