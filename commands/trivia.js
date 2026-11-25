@@ -141,7 +141,7 @@ function helpText(prefix) {
     "┃ ◈ " + prefix + "trivia add — Add one question",
     "┃ ◈ " + prefix + "trivia import — Import a JSON file",
     "┃ ◈ " + prefix + "trivia export — Export the question bank",
-    "┃ ◈ " + prefix + "trivia list / remove / settings",
+    "┃ ◈ " + prefix + "trivia list / edit / remove / settings",
     "╰━━━━━━━━━━━━━━━━━━⬣",
     "",
     "Difficulty points: Easy 1 · Medium 2 · Hard 3 · Expert 5",
@@ -361,11 +361,34 @@ const triviaCommand = {
       const subject = actionArgs;
       const questions = await triviaStore.listQuestions(subject ? { subject } : {});
       const categories = await triviaStore.getCategories();
+      const questionRows = questions.slice(0, 20).map(item =>
+        "ID: " + item.id + "\n" + item.subject + " · " + item.subcategory +
+        " · " + item.difficulty.toUpperCase() + "\n" + item.question.slice(0, 100)
+      );
       await ctx.reply(
         "*OFFICIAL QUESTION BANK*\n\nTotal questions: " + questions.length +
         "\n\n" + categorySummary(categories) +
-        "\n\nUse " + prefix + "trivia remove <question-id> to remove a question."
+        (questionRows.length ? "\n\n*RECENT QUESTIONS*\n" + questionRows.join("\n\n") : "") +
+        "\n\nUse " + prefix + "trivia edit <id> or " + prefix + "trivia remove <id>."
       );
+      return;
+    }
+
+    if (action === "edit") {
+      if (!(await ownerOnly(ctx))) return;
+      const newline = actionArgs.indexOf("\n");
+      const id = newline < 0 ? "" : actionArgs.slice(0, newline).trim();
+      const block = newline < 0 ? "" : actionArgs.slice(newline + 1).trim();
+      if (!id || !block) {
+        await ctx.reply("Usage: " + prefix + "trivia edit <question-id> then provide the updated question fields.");
+        return;
+      }
+      try {
+        const updated = await triviaStore.updateQuestion(id, parseQuestionBlock(block));
+        await ctx.reply(updated ? "✅ Question updated in the official bank." : "No question was found with that ID.");
+      } catch (error) {
+        await ctx.reply("⚠️ Could not update question: " + error.message);
+      }
       return;
     }
 
@@ -387,7 +410,7 @@ const triviaCommand = {
           "\nSeconds per question: " + settings.secondsPerQuestion +
           "\nDelay between questions: " + (settings.interQuestionDelayMs / 1000) + "s" +
           "\nStart cooldown: " + (settings.startCooldownMs / 1000) + "s" +
-          "\n\nSet with: " + prefix + "trivia settings count 20 | time 25 | delay 3 | cooldown 30"
+          "\n\nSet one at a time: " + prefix + "trivia settings count 20 (or time 25, delay 3, cooldown 30)"
         );
         return;
       }
