@@ -25,15 +25,15 @@ function groupOnly(ctx) {
 function parseQuestionBlock(source) {
   const fields = {};
   let current = "";
-  for (const rawLine of String(source || "").split(/\\r?\\n/)) {
+  for (const rawLine of String(source || "").split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line) continue;
-    const match = line.match(/^([a-z ]{1,24})\\s*:\\s*(.*)$/i);
+    const match = line.match(/^([a-z ]{1,24})\s*:\s*(.*)$/i);
     if (match) {
-      current = match[1].trim().toLowerCase().replace(/\\s+/g, "");
+      current = match[1].trim().toLowerCase().replace(/\s+/g, "");
       fields[current] = match[2].trim();
     } else if (current) {
-      fields[current] = (fields[current] + "\\n" + line).trim();
+      fields[current] = (fields[current] + "\n" + line).trim();
     }
   }
   return {
@@ -100,7 +100,7 @@ async function readImportFile(ctx) {
     if (total > MAX_IMPORT_BYTES) throw new Error("The JSON file exceeds the 2 MB import limit.");
     chunks.push(buffer);
   }
-  const text = Buffer.concat(chunks).toString("utf8").replace(/^\\uFEFF/, "");
+  const text = Buffer.concat(chunks).toString("utf8").replace(/^\uFEFF/, "");
   let parsed;
   try {
     parsed = JSON.parse(text);
@@ -121,7 +121,7 @@ function categorySummary(categories) {
   if (!categories.length) return "No questions have been added to the official bank yet.";
   return categories.map(item =>
     "┃ ◈ *" + item.name + "* — " + item.subcategories.join(", ")
-  ).join("\\n");
+  ).join("\n");
 }
 
 function helpText(prefix) {
@@ -148,7 +148,7 @@ function helpText(prefix) {
     "Each participant gets one answer per question. The first correct answer earns the points.",
     "The leaderboard resets when a new competition starts.",
     "⚡ POWERED BY TOLUWALASE STUDIOS"
-  ].join("\\n");
+  ].join("\n");
 }
 
 function liveLeaderboard(game) {
@@ -166,7 +166,7 @@ function liveLeaderboard(game) {
     lines.push((["🥇", "🥈", "🥉"][index] || String(index + 1) + ".") +
       " *" + player.name + "* — " + player.points + " pts");
   });
-  return lines.join("\\n");
+  return lines.join("\n");
 }
 
 const triviaCommand = {
@@ -177,7 +177,7 @@ const triviaCommand = {
   allowInPrivateMode: true,
   run: async ctx => {
     const input = String(ctx.args || "").trim();
-    const [rawAction = "menu", ...rest] = input.split(/\\s+/);
+    const [rawAction = "menu", ...rest] = input.split(/\s+/);
     const action = rawAction.toLowerCase();
     const actionArgs = input.slice(rawAction.length).trim();
     const prefix = ctx.config.prefix || "!";
@@ -190,40 +190,40 @@ const triviaCommand = {
       const categories = await triviaStore.getCategories();
       const active = isGroup(ctx) ? triviaEngine.getActiveGame(ctx.jid) : null;
       await ctx.reply(
-        helpText(prefix) + "\\n\\n*AVAILABLE CATEGORIES*\\n" + categorySummary(categories) +
-        (active ? "\\n\\n<escape>⚡</escape> A competition is currently running: " +
+        helpText(prefix) + "\n\n*AVAILABLE CATEGORIES*\n" + categorySummary(categories) +
+        (active ? "\n\n<escape>⚡</escape> A competition is currently running: " +
           active.label + " (" + active.questionNumber + "/" + active.questionCount + ")." : "")
       );
       return;
     }
 
     if (action === "enable" || action === "disable") {
-      if (!ownerOnly(ctx) || !groupOnly(ctx)) return;
+      if (!(await ownerOnly(ctx)) || !(await groupOnly(ctx))) return;
       const enabled = action === "enable";
       await triviaStore.setGroupEnabled(ctx.jid, enabled);
       if (!enabled) await triviaEngine.stopGame(ctx.jid);
       await ctx.reply(enabled
-        ? "✅ *TRIVIA ENABLED*\\nThis group can now start its own competitions, even when the bot is in Private mode."
-        : "🔒 *TRIVIA DISABLED*\\nThis group can no longer start Trivia competitions.");
+        ? "✅ *TRIVIA ENABLED*\nThis group can now start its own competitions, even when the bot is in Private mode."
+        : "🔒 *TRIVIA DISABLED*\nThis group can no longer start Trivia competitions.");
       return;
     }
 
     if (action === "groups") {
-      if (!ownerOnly(ctx)) return;
+      if (!(await ownerOnly(ctx))) return;
       const groups = await triviaStore.listEnabledGroups();
       await ctx.reply(groups.length
-        ? "*TRIVIA-ENABLED GROUPS*\\n\\n" + groups.map((jid, index) => (index + 1) + ". " + jid).join("\\n")
+        ? "*TRIVIA-ENABLED GROUPS*\n\n" + groups.map((jid, index) => (index + 1) + ". " + jid).join("\n")
         : "No groups currently have Trivia enabled.");
       return;
     }
 
     if (action === "status") {
-      if (!groupOnly(ctx)) return;
+      if (!(await groupOnly(ctx))) return;
       const enabled = await triviaStore.isGroupEnabled(ctx.jid);
       const active = triviaEngine.getActiveGame(ctx.jid);
       await ctx.reply(
-        "🧠 *TRIVIA GROUP STATUS*\\n\\nEnabled: " + (enabled ? "YES" : "NO") +
-        "\\nCompetition: " + (active ? "RUNNING — " + active.questionNumber + "/" + active.questionCount : "NONE")
+        "🧠 *TRIVIA GROUP STATUS*\n\nEnabled: " + (enabled ? "YES" : "NO") +
+        "\nCompetition: " + (active ? "RUNNING — " + active.questionNumber + "/" + active.questionCount : "NONE")
       );
       return;
     }
@@ -238,10 +238,10 @@ const triviaCommand = {
       if (!actionArgs) {
         const categories = await triviaStore.getCategories();
         await ctx.reply(
-          "*CHOOSE YOUR TRIVIA QUIZ*\\n\\n" + categorySummary(categories) +
-          "\\n\\n*Format:* " + prefix + "trivia start Subject | Subcategory | Difficulty | Questions | Seconds" +
-          "\\n*Example:* " + prefix + "trivia start Biology | Cell Biology | hard | 20 | 25" +
-          "\\n*Mixed subjects:* " + prefix + "trivia start Physics + Chemistry + Biology | all | mixed | 20 | 25"
+          "*CHOOSE YOUR TRIVIA QUIZ*\n\n" + categorySummary(categories) +
+          "\n\n*Format:* " + prefix + "trivia start Subject | Subcategory | Difficulty | Questions | Seconds" +
+          "\n*Example:* " + prefix + "trivia start Biology | Cell Biology | hard | 20 | 25" +
+          "\n*Mixed subjects:* " + prefix + "trivia start Physics + Chemistry + Biology | all | mixed | 20 | 25"
         );
         return;
       }
@@ -303,17 +303,17 @@ const triviaCommand = {
       if (!ownerOnly(ctx)) return;
       if (!actionArgs) {
         await ctx.reply(
-          "*ADD ONE QUESTION*\\n\\n" +
-          "Subject: Biology\\nSubcategory: Cell Biology\\nDifficulty: Hard\\n" +
-          "Question: Your question here?\\nA: First option\\nB: Second option\\n" +
-          "C: Third option\\nD: Fourth option\\nAnswer: B\\nExplanation: Why B is correct."
+          "*ADD ONE QUESTION*\n\n" +
+          "Subject: Biology\nSubcategory: Cell Biology\nDifficulty: Hard\n" +
+          "Question: Your question here?\nA: First option\nB: Second option\n" +
+          "C: Third option\nD: Fourth option\nAnswer: B\nExplanation: Why B is correct."
         );
         return;
       }
       try {
         const result = await triviaStore.addQuestions(parseQuestionBlock(actionArgs));
         await ctx.reply("✅ Question added to the official bank. ID: " + result.ids[0] +
-          (result.duplicates ? "\\nDuplicate questions skipped: " + result.duplicates : ""));
+          (result.duplicates ? "\nDuplicate questions skipped: " + result.duplicates : ""));
       } catch (error) {
         await ctx.reply("⚠️ Could not add question: " + error.message);
       }
@@ -326,10 +326,10 @@ const triviaCommand = {
         const questions = await readImportFile(ctx);
         const result = await triviaStore.addQuestions(questions);
         await ctx.reply(
-          "✅ *QUESTION BANK IMPORT COMPLETE*\\n\\n" +
+          "✅ *QUESTION BANK IMPORT COMPLETE*\n\n" +
           "New questions: " + result.added +
-          "\\nDuplicates skipped: " + result.duplicates +
-          "\\nTotal bank size: " + (await triviaStore.getStats()).questionCount
+          "\nDuplicates skipped: " + result.duplicates +
+          "\nTotal bank size: " + (await triviaStore.getStats()).questionCount
         );
       } catch (error) {
         await ctx.reply("⚠️ Import failed: " + String(error.message || error).slice(0, 240));
@@ -340,7 +340,7 @@ const triviaCommand = {
     if (action === "template") {
       if (!ownerOnly(ctx)) return;
       await ctx.reply(
-        "Save a JSON file named *trivia-questions.json* with this structure:\\n\\n" +
+        "Save a JSON file named *trivia-questions.json* with this structure:\n\n" +
         '{"questions":[{"subject":"Biology","subcategory":"Cell Biology","difficulty":"hard",' +
         '"question":"Which organelle modifies and packages proteins?","options":' +
         '{"A":"Lysosome","B":"Golgi apparatus","C":"Ribosome","D":"Nucleolus"},' +
@@ -367,9 +367,9 @@ const triviaCommand = {
       const questions = await triviaStore.listQuestions(subject ? { subject } : {});
       const categories = await triviaStore.getCategories();
       await ctx.reply(
-        "*OFFICIAL QUESTION BANK*\\n\\nTotal questions: " + questions.length +
-        "\\n\\n" + categorySummary(categories) +
-        "\\n\\nUse " + prefix + "trivia remove <question-id> to remove a question."
+        "*OFFICIAL QUESTION BANK*\n\nTotal questions: " + questions.length +
+        "\n\n" + categorySummary(categories) +
+        "\n\nUse " + prefix + "trivia remove <question-id> to remove a question."
       );
       return;
     }
@@ -383,16 +383,16 @@ const triviaCommand = {
 
     if (action === "settings") {
       if (!ownerOnly(ctx)) return;
-      const [key, rawValue] = actionArgs.split(/\\s+/, 2);
+      const [key, rawValue] = actionArgs.split(/\s+/, 2);
       if (!key) {
         const settings = await triviaStore.getSettings();
         await ctx.reply(
-          "*TRIVIA DEFAULT SETTINGS*\\n\\n" +
+          "*TRIVIA DEFAULT SETTINGS*\n\n" +
           "Questions per game: " + settings.questionCount +
-          "\\nSeconds per question: " + settings.secondsPerQuestion +
-          "\\nDelay between questions: " + (settings.interQuestionDelayMs / 1000) + "s" +
-          "\\nStart cooldown: " + (settings.startCooldownMs / 1000) + "s" +
-          "\\n\\nSet with: " + prefix + "trivia settings count 20 | time 25 | delay 3 | cooldown 30"
+          "\nSeconds per question: " + settings.secondsPerQuestion +
+          "\nDelay between questions: " + (settings.interQuestionDelayMs / 1000) + "s" +
+          "\nStart cooldown: " + (settings.startCooldownMs / 1000) + "s" +
+          "\n\nSet with: " + prefix + "trivia settings count 20 | time 25 | delay 3 | cooldown 30"
         );
         return;
       }
@@ -403,14 +403,14 @@ const triviaCommand = {
         cooldown: "startCooldownMs"
       };
       const target = settingMap[key.toLowerCase()];
-      if (!target || !rawValue || !/^\\d+$/.test(rawValue)) {
+      if (!target || !rawValue || !/^\d+$/.test(rawValue)) {
         await ctx.reply("Usage: " + prefix + "trivia settings count 20 (or time 25, delay 3, cooldown 30).");
         return;
       }
       try {
         const value = Number(rawValue) * (["delay", "cooldown"].includes(key.toLowerCase()) ? 1000 : 1);
         const updated = await triviaStore.updateSettings({ [target]: value });
-        await ctx.reply("✅ Trivia setting updated.\\n" + target + ": " + updated[target]);
+        await ctx.reply("✅ Trivia setting updated.\n" + target + ": " + updated[target]);
       } catch (error) {
         await ctx.reply("⚠️ " + error.message);
       }
