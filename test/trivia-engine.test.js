@@ -82,9 +82,9 @@ test("each player gets one attempt per question and the first correct answer ear
       groupJid, senderJid: "2348000000002@s.whatsapp.net", name: "Winner", answer: "B"
     });
     assert.equal(state.sent.some(text => text.includes("Winner")), true);
-    assert.equal(state.sent.some(text => text.includes("+3")), true);
+    assert.equal(state.sent.some(text => text.includes("+1")), true);
     assert.equal(state.sent.some(text => text.includes("FINAL LEADERBOARD")), true);
-    assert.equal(state.sent.some(text => text.includes("Winner") && text.includes("3 pts")), true);
+    assert.equal(state.sent.some(text => text.includes("Winner") && text.includes("1 pts")), true);
     assert.equal(state.engine.getActiveGame(groupJid), null);
     const persisted = await state.store.load();
     assert.equal(persisted.questionUsage[groupJid].length, 1);

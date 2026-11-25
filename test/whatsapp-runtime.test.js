@@ -4,7 +4,8 @@ import {
   getWhatsAppBrowser,
   rememberUpsertMessages,
   shouldHandleViewOnceReaction,
-  canDispatchCommandInMode
+  canDispatchCommandInMode,
+  resolveMessageSender
 } from "../lib/whatsapp-runtime.js";
 import { createRecentMessageStore } from "../lib/message-store.js";
 
@@ -65,6 +66,25 @@ test("view-once reaction trigger accepts only the configured emoji reacted by th
     ...update,
     reaction: { ...update.reaction, text: "" }
   }, "⚡", new Set()), false);
+});
+
+test("owner sender resolution prefers phone JIDs and resolves cached LIDs", async () => {
+  const mappedSocket = {
+    signalRepository: {
+      lidMapping: {
+        getPNForLID: async lid => lid === "998877@lid" ? "2348000000001@s.whatsapp.net" : null
+      }
+    }
+  };
+  assert.equal(await resolveMessageSender({
+    key: { remoteJid: "group@g.us", participant: "998877@lid" }
+  }, mappedSocket), "2348000000001@s.whatsapp.net");
+  assert.equal(await resolveMessageSender({
+    key: { remoteJid: "group@g.us", participant: "998877@lid", participantAlt: "2348000000002@s.whatsapp.net" }
+  }, mappedSocket), "2348000000002@s.whatsapp.net");
+  assert.equal(await resolveMessageSender({
+    key: { remoteJid: "group@g.us", participant: "998877@lid", senderPn: "2348000000003@s.whatsapp.net" }
+  }, mappedSocket), "2348000000003@s.whatsapp.net");
 });
 
 test("Private mode bypass is limited to commands explicitly marked for independent access", () => {

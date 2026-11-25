@@ -32,7 +32,7 @@ test("normalizes a question and validates its four options and answer", () => {
   const normalized = normalizeTriviaQuestion(question(1));
   assert.equal(normalized.subject, "Biology");
   assert.equal(normalized.subcategory, "Cell Biology");
-  assert.equal(normalized.difficulty, "hard");
+  assert.equal(Object.hasOwn(normalized, "difficulty"), false);
   assert.deepEqual(Object.keys(normalized.options), ["A", "B", "C", "D"]);
   assert.equal(normalized.answer, "B");
   assert.ok(normalized.id);
@@ -40,7 +40,7 @@ test("normalizes a question and validates its four options and answer", () => {
 
   assert.throws(() => normalizeTriviaQuestion(question(2, { answer: "E" })), /A, B, C or D/);
   assert.throws(() => normalizeTriviaQuestion(question(3, { options: ["A", "B"] })), /exactly four/);
-  assert.throws(() => normalizeTriviaQuestion(question(4, { difficulty: "impossible" })), /Difficulty/);
+  assert.equal(Object.hasOwn(normalizeTriviaQuestion(question(4, { difficulty: "impossible" })), "difficulty"), false);
 });
 
 test("legacy all-time usage is migrated safely to previous-quiz rotation", async () => {
@@ -109,7 +109,7 @@ test("questions can be edited without changing their stable ID", async () => {
     const saved = (await store.listQuestions())[0];
     assert.equal(saved.id, id);
     assert.equal(saved.question, "Updated question text?");
-    assert.equal(saved.difficulty, "expert");
+    assert.equal(Object.hasOwn(saved, "difficulty"), false);
     assert.equal(await store.updateQuestion("missing-id", question(2)), false);
   });
 });
@@ -197,7 +197,7 @@ test("a bank smaller than the requested quiz is the only reason to reduce questi
   });
 });
 
-test("question selection filters difficulty and reports when the bank is smaller than requested", async () => {
+test("legacy difficulty values are ignored and all topic questions remain eligible", async () => {
   await withStore(async store => {
     const group = "120363012345678901-123456@g.us";
     await store.addQuestions([
@@ -208,13 +208,11 @@ test("question selection filters difficulty and reports when the bank is smaller
     const result = await store.selectQuestions({
       groupJid: group,
       subjects: ["Biology"],
-      difficulty: "hard",
       count: 10
     });
-    assert.equal(result.available, 1);
-    assert.equal(result.questions.length, 1);
-    assert.equal(result.reduced, true);
-    assert.equal(result.questions[0].difficulty, "hard");
+    assert.equal(result.available, 3);
+    assert.equal(result.questions.length, 3);
+    assert.equal(result.questions.every(item => !Object.hasOwn(item, "difficulty")), true);
   });
 });
 

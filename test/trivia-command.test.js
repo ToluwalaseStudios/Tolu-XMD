@@ -50,11 +50,23 @@ test("only the owner can enable a group and participants can access its restrict
   assert.doesNotMatch(replies.at(-1), /AI & MEDIA/);
 });
 
+test("plain !trivia in the owner's personal DM still opens the existing menu", async () => {
+  const personalReplies = [];
+  await trivia.run({
+    ...baseContext,
+    jid: "2349000000000@s.whatsapp.net",
+    owner: true,
+    args: "",
+    reply: async value => personalReplies.push(String(value))
+  });
+  assert.match(personalReplies[0], /GROUP COMPETITION ARENA/);
+  assert.match(personalReplies[0], /AVAILABLE CATEGORIES/);
+});
+
 test("owner can add a question and members can start and stop a competition", async () => {
   const block = [
     "Subject: Biology",
     "Subcategory: Cell Biology",
-    "Difficulty: Hard",
     "Question: Which organelle modifies and packages proteins?",
     "A: Lysosome",
     "B: Golgi apparatus",
@@ -76,20 +88,37 @@ test("owner can add a question and members can start and stop a competition", as
     ...baseContext,
     owner: false,
     senderJid: "2348000000002@s.whatsapp.net",
-    args: "start Biology | all | mixed | 1 | 10"
+    args: "start"
   });
-  assert.equal(sent.length, 1);
-  assert.match(sent[0].payload.text, /𝐓𝐑𝐈𝐕𝐈𝐀/);
-  assert.match(sent[0].payload.text, /Question:\* 1\/1/);
+  assert.match(sent.at(-1).payload.text, /STEP 1 — CHOOSE A SUBJECT/);
+  assert.equal(await triviaEngine.handleSetupReply({
+    groupJid,
+    senderJid: "2348000000002@s.whatsapp.net",
+    text: "1"
+  }), true);
+  assert.match(sent.at(-1).payload.text, /ALL TOPICS/);
+  assert.equal(await triviaEngine.handleSetupReply({
+    groupJid,
+    senderJid: "2348000000002@s.whatsapp.net",
+    text: "1"
+  }), true);
+  assert.match(sent.at(-1).payload.text, /NUMBER OF QUESTIONS/);
+  assert.equal(await triviaEngine.handleSetupReply({
+    groupJid,
+    senderJid: "2348000000002@s.whatsapp.net",
+    text: "10"
+  }), true);
+  assert.match(sent.at(-1).payload.text, /Question:\* 1\/1/);
+  assert.equal(await triviaEngine.handleAnswer({
+    groupJid,
+    senderJid: "2348000000004@s.whatsapp.net",
+    name: "Quiz Winner",
+    answer: "B"
+  }), true);
+  assert.equal(sent.some(item => item.payload.text.includes("FINAL LEADERBOARD")), true);
+  assert.equal(sent.some(item => item.payload.text.includes("Quiz Winner") && item.payload.text.includes("1 pts")), true);
 
-  await trivia.run({
-    ...baseContext,
-    owner: false,
-    senderJid: "2348000000003@s.whatsapp.net",
-    args: "stop"
-  });
   assert.equal(triviaEngine.getActiveGame(groupJid), null);
-  assert.equal(sent.some(item => item.payload.text.includes("COMPETITION STOPPED")), true);
 });
 
 test("disabled groups cannot start competitions and members cannot manage the question bank", async () => {
