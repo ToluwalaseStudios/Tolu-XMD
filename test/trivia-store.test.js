@@ -105,27 +105,32 @@ test("category listing exposes custom subjects and subcategories", async () => {
   });
 });
 
-test("question usage is independent per group and avoids repeats until a cycle is exhausted", async () => {
+test("question usage is independent per group and refers only to the previous completed quiz", async () => {
   await withStore(async store => {
     const groupA = "120363012345678901-123456@g.us";
     const groupB = "120363012345678901-654321@g.us";
     await store.addQuestions(Array.from({ length: 5 }, (_, index) => question(index + 1)));
 
     const first = await store.selectQuestions({ groupJid: groupA, subjects: ["Biology"], count: 3 });
+    await store.recordQuestionsUsed({ groupJid: groupA, questionIds: first.questions.map(item => item.id) });
     const second = await store.selectQuestions({ groupJid: groupA, subjects: ["Biology"], count: 2 });
-    const third = await store.selectQuestions({ groupJid: groupA, subjects: ["Biology"], count: 3 });
-    const otherGroup = await store.selectQuestions({ groupJid: groupB, subjects: ["Biology"], count: 3 });
-
     const firstIds = new Set(first.questions.map(item => item.id));
-    assert.equal(firstIds.size, 3);
     assert.equal(second.questions.length, 2);
     assert.equal(second.questions.some(item => firstIds.has(item.id)), false);
+
+    await store.recordQuestionsUsed({ groupJid: groupA, questionIds: second.questions.map(item => item.id) });
+    const third = await store.selectQuestions({ groupJid: groupA, subjects: ["Biology"], count: 3 });
+    const secondIds = new Set(second.questions.map(item => item.id));
     assert.equal(third.questions.length, 3);
+    assert.equal(third.questions.some(item => secondIds.has(item.id)), false);
     assert.equal(new Set(third.questions.map(item => item.id)).size, 3);
+
+    const otherGroup = await store.selectQuestions({ groupJid: groupB, subjects: ["Biology"], count: 3 });
     assert.equal(otherGroup.questions.length, 3);
     assert.equal(otherGroup.questions.some(item => firstIds.has(item.id)), true);
   });
 });
+
 
 test("questions absent from the last concluded quiz are used first, then older questions fill the remainder", async () => {
   await withStore(async store => {
@@ -137,8 +142,8 @@ test("questions absent from the last concluded quiz are used first, then older q
     // Selecting a game must not consume its questions until it concludes.
     const samePreview = await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 20 });
     assert.deepEqual(
-      new Set(samePreview.questions.map(item => item.id)),
-      new Set(firstQuiz.questions.map(item => item.id))
+      new Set([...samePreview.questions.map(item => item.id)].sort()),
+      new Set([...firstQuiz.questions.map(item => item.id)].sort())
     );
 
     await store.recordQuestionsUsed({
