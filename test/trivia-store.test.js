@@ -52,6 +52,9 @@ test("group activation is persisted and validates group JIDs", async () => {
     assert.deepEqual(await store.listEnabledGroups(), [jid]);
     await store.setGroupEnabled(jid, false);
     assert.equal(await store.isGroupEnabled(jid), false);
+    const modernJid = "120363012345678901@g.us";
+    await store.setGroupEnabled(modernJid, true);
+    assert.equal(await store.isGroupEnabled(modernJid), true);
     await assert.rejects(() => store.setGroupEnabled("2348000000000@s.whatsapp.net", true), /only be changed inside/);
   });
 });
