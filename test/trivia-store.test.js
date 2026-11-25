@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createTriviaStore, normalizeTriviaQuestion } from "../lib/trivia-store.js";
@@ -41,6 +41,30 @@ test("normalizes a question and validates its four options and answer", () => {
   assert.throws(() => normalizeTriviaQuestion(question(2, { answer: "E" })), /A, B, C or D/);
   assert.throws(() => normalizeTriviaQuestion(question(3, { options: ["A", "B"] })), /exactly four/);
   assert.throws(() => normalizeTriviaQuestion(question(4, { difficulty: "impossible" })), /Difficulty/);
+});
+
+test("legacy all-time usage is migrated safely to previous-quiz rotation", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "tolu-trivia-migration-"));
+  try {
+    const filePath = path.join(directory, "trivia.json");
+    await writeFile(filePath, JSON.stringify({
+      version: 1,
+      enabledGroups: [],
+      questions: [],
+      questionUsage: { "120363012345678901-123456@g.us": ["legacy-used-id"] },
+      settings: {}
+    }));
+    const store = createTriviaStore({ filePath });
+    await store.addQuestions([question(1), question(2)]);
+    const group = "120363012345678901-123456@g.us";
+    const selected = await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 2 });
+    assert.equal(selected.questions.length, 2);
+    const migrated = await store.load();
+    assert.equal(migrated.version, 2);
+    assert.deepEqual(migrated.questionUsage, {});
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("group activation is persisted and validates group JIDs", async () => {
