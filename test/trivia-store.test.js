@@ -70,6 +70,23 @@ test("question bank adds questions and rejects duplicate content without losing 
   });
 });
 
+test("questions can be edited without changing their stable ID", async () => {
+  await withStore(async store => {
+    const added = await store.addQuestions(question(1));
+    const id = added.ids[0];
+    const updated = await store.updateQuestion(id, question(1, {
+      question: "Updated question text?",
+      difficulty: "expert"
+    }));
+    assert.equal(updated, true);
+    const saved = (await store.listQuestions())[0];
+    assert.equal(saved.id, id);
+    assert.equal(saved.question, "Updated question text?");
+    assert.equal(saved.difficulty, "expert");
+    assert.equal(await store.updateQuestion("missing-id", question(2)), false);
+  });
+});
+
 test("category listing exposes custom subjects and subcategories", async () => {
   await withStore(async store => {
     await store.addQuestions([
