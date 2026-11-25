@@ -183,6 +183,10 @@ const triviaCommand = {
     const prefix = ctx.config.prefix || "!";
 
     if (["help", "menu", ""].includes(action)) {
+      if (!isGroup(ctx) && !ctx.owner) {
+        await ctx.reply("Trivia competitions are available only inside groups enabled by the bot owner.");
+        return;
+      }
       if (isGroup(ctx) && !(await triviaStore.isGroupEnabled(ctx.jid))) {
         await ctx.reply("🔒 Trivia Arena has not been enabled for this group. Ask the bot owner to enable it.");
         return;
