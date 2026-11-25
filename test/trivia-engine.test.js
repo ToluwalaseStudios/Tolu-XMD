@@ -125,6 +125,25 @@ test("answers outside an active game are ignored and start cooldown is enforced"
   }
 });
 
+test("an unanswered question expires, reveals its answer and completes the game", async () => {
+  const state = await setup(1);
+  try {
+    await state.engine.startGame({
+      groupJid, subjects: ["Biology"], count: 1, secondsPerQuestion: 10, send: state.send
+    });
+    const timer = state.timers.find(item => item.ms === 10000 && !item.cancelled);
+    assert.ok(timer);
+    timer.fn();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(state.sent.some(text => text.includes("TIME'S UP")), true);
+    assert.equal(state.sent.some(text => text.includes("Answer:* B")), true);
+    assert.equal(state.sent.some(text => text.includes("FINAL LEADERBOARD")), true);
+    assert.equal(state.engine.getActiveGame(groupJid), null);
+  } finally {
+    await rm(state.directory, { recursive: true, force: true });
+  }
+});
+
 test("a question pool smaller than the requested count is reduced without duplicates", async () => {
   const state = await setup(2);
   try {
