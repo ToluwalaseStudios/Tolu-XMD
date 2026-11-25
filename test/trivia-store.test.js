@@ -97,6 +97,30 @@ test("question bank adds questions and rejects duplicate content without losing 
   });
 });
 
+test("bulk deletion removes questions by subject, topic or explicit IDs and cleans rotation history", async () => {
+  await withStore(async store => {
+    const group = "120363012345678901-123456@g.us";
+    const added = await store.addQuestions([
+      question(1),
+      question(2, { subcategory: "Genetics" }),
+      question(3, { subject: "Chemistry", subcategory: "Organic Chemistry" })
+    ]);
+    await store.recordQuestionsUsed({ groupJid: group, questionIds: added.ids });
+    const topicResult = await store.removeQuestions({ subject: "biology", subcategory: "cell biology" });
+    assert.equal(topicResult.removed, 1);
+    assert.equal((await store.listQuestions()).length, 2);
+    assert.deepEqual((await store.load()).questionUsage[group].sort(), added.ids.slice(1).sort());
+
+    const idResult = await store.removeQuestions({ ids: [added.ids[1], "not-present"] });
+    assert.equal(idResult.removed, 1);
+    const subjectResult = await store.removeQuestions({ subject: "CHEMISTRY" });
+    assert.equal(subjectResult.removed, 1);
+    assert.equal((await store.getStats()).questionCount, 0);
+    await assert.rejects(() => store.removeQuestions({}), /Choose question IDs/);
+    await assert.rejects(() => store.removeQuestions({ subcategory: "Cell Biology" }), /must also specify its subject/);
+  });
+});
+
 test("questions can be edited without changing their stable ID", async () => {
   await withStore(async store => {
     const added = await store.addQuestions(question(1));

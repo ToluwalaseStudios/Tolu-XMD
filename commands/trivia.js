@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { downloadContentFromMessage } from "@whiskeysockets/baileys";
 import { getContextInfo, unwrapMessage } from "../lib/message-utils.js";
 import { triviaStore } from "../lib/trivia-store.js";
@@ -5,6 +6,31 @@ import { triviaEngine } from "../lib/trivia-engine.js";
 
 const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
 const MAX_IMPORT_QUESTIONS = 5000;
+
+const pendingBulkDeletes = new Map();
+const BULK_DELETE_CONFIRM_TTL_MS = 2 * 60 * 1000;
+
+function bulkDeleteKey(ctx) {
+  return String(ctx.senderJid || "") + "|" + String(ctx.jid || "");
+}
+
+function parseBulkDeleteScope(input) {
+  const [kindRaw = "", ...rest] = String(input || "").trim().split(/\s+/);
+  const kind = kindRaw.toLowerCase();
+  const value = rest.join(" ").trim();
+  if (kind === "subject" && value) return { subject: value };
+  if (kind === "topic" && value.includes("|")) {
+    const [subject, ...parts] = value.split("|");
+    const subcategory = parts.join("|").trim();
+    if (subject.trim() && subcategory) return { subject: subject.trim(), subcategory };
+  }
+  if (kind === "ids" && value) {
+    const ids = value.split(",").map(id => id.trim()).filter(Boolean);
+    if (ids.length && ids.length <= 100) return { ids };
+  }
+  if (kind === "all" && !value) return { all: true };
+  return null;
+}
 
 function isGroup(ctx) {
   return String(ctx.jid || "").endsWith("@g.us");
@@ -106,21 +132,41 @@ function helpText(prefix) {
     "┃ *GROUP COMPETITION ARENA*",
     "┃",
     "┃ *PARTICIPANTS*",
-    "┃ ◈ " + prefix + "trivia — Open Trivia menu",
-    "┃ ◈ " + prefix + "trivia start — Start the guided quiz setup",
+    "┃ ◈ " + prefix + "trivia / help — Open this command menu",
+    "┃ ◈ " + prefix + "trivia start — Start guided quiz setup",
+    "┃ ◈ " + prefix + "trivia cancel — Cancel your pending setup",
     "┃ ◈ " + prefix + "trivia stop — Stop the current game",
     "┃ ◈ " + prefix + "trivia leaderboard — View live scores",
+    "┃ ◈ " + prefix + "trivia status — View group Trivia status",
     "┃",
-    "┃ *OWNER CONTROLS*",
-    "┃ ◈ " + prefix + "trivia enable / disable",
-    "┃ ◈ " + prefix + "trivia add — Add one question",
-    "┃ ◈ " + prefix + "trivia import — Import a JSON file",
-    "┃ ◈ " + prefix + "trivia export — Export the question bank",
-    "┃ ◈ " + prefix + "trivia list / edit / remove / settings",
+    "┃ *OWNER — GROUP ACCESS*",
+    "┃ ◈ " + prefix + "trivia enable / disable — Toggle this group",
+    "┃ ◈ " + prefix + "trivia groups — List enabled groups",
+    "┃",
+    "┃ *OWNER — QUESTION BANK*",
+    "┃ ◈ " + prefix + "trivia add — Show format / add one question",
+    "┃ ◈ " + prefix + "trivia import — Import a replied-to JSON file",
+    "┃ ◈ " + prefix + "trivia template — Send JSON template",
+    "┃ ◈ " + prefix + "trivia export — Export the full bank",
+    "┃ ◈ " + prefix + "trivia list [subject] — List questions and IDs",
+    "┃ ◈ " + prefix + "trivia edit <id> — Edit one question",
+    "┃ ◈ " + prefix + "trivia remove <id> — Delete one question",
+    "┃ ◈ " + prefix + "trivia delete subject <name>",
+    "┃ ◈ " + prefix + "trivia delete topic <subject>|<topic>",
+    "┃ ◈ " + prefix + "trivia delete ids <id1,id2>",
+    "┃ ◈ " + prefix + "trivia delete all — Delete the entire bank",
+    "┃ ◈ " + prefix + "trivia delete confirm <code> / cancel",
+    "┃",
+    "┃ *OWNER — SETTINGS*",
+    "┃ ◈ " + prefix + "trivia settings — View settings",
+    "┃ ◈ " + prefix + "trivia settings count 20",
+    "┃ ◈ " + prefix + "trivia settings time 25",
+    "┃ ◈ " + prefix + "trivia settings delay 3",
+    "┃ ◈ " + prefix + "trivia settings cooldown 30",
     "╰━━━━━━━━━━━━━━━━━━⬣",
     "",
-    "Each correct answer earns 1 point. The first correct answer wins that question.",
-    "The leaderboard resets when a new competition starts.",
+    "Each correct answer earns 1 point. The first correct answer wins the question.",
+    "Bulk deletion shows a preview and requires a confirmation code.",
     "⚡ POWERED BY TOLUWALASE STUDIOS"
   ].join("\n");
 }
@@ -337,7 +383,7 @@ const triviaCommand = {
         "*OFFICIAL QUESTION BANK*\n\nTotal questions: " + questions.length +
         "\n\n" + categorySummary(categories) +
         (questionRows.length ? "\n\n*RECENT QUESTIONS*\n" + questionRows.join("\n\n") : "") +
-        "\n\nUse " + prefix + "trivia edit <id> or " + prefix + "trivia remove <id>."
+        "\n\nUse " + prefix + "trivia edit <id>, " + prefix + "trivia remove <id>, or " + prefix + "trivia delete for bulk deletion."
       );
       return;
     }
@@ -357,6 +403,77 @@ const triviaCommand = {
       } catch (error) {
         await ctx.reply("⚠️ Could not update question: " + error.message);
       }
+      return;
+    }
+
+    if (action === "delete") {
+      if (!(await ownerOnly(ctx))) return;
+      const [modeRaw = "", ...rest] = actionArgs.split(/\s+/);
+      const mode = modeRaw.toLowerCase();
+      const value = rest.join(" ").trim();
+      const key = bulkDeleteKey(ctx);
+
+      if (mode === "cancel") {
+        const cancelled = pendingBulkDeletes.delete(key);
+        await ctx.reply(cancelled ? "Bulk deletion cancelled. No questions were deleted." : "There is no pending bulk deletion to cancel.");
+        return;
+      }
+
+      if (mode === "confirm") {
+        const pending = pendingBulkDeletes.get(key);
+        if (!pending || pending.expiresAt <= Date.now()) {
+          pendingBulkDeletes.delete(key);
+          await ctx.reply("⌛ No valid bulk deletion is awaiting confirmation. Run the delete command again.");
+          return;
+        }
+        if (!value || value.toUpperCase() !== pending.code) {
+          await ctx.reply("❌ Confirmation code does not match. No questions were deleted.");
+          return;
+        }
+        pendingBulkDeletes.delete(key);
+        try {
+          const result = await triviaStore.removeQuestions({ ids: pending.ids });
+          await ctx.reply("✅ *BULK DELETION COMPLETE*\n\nQuestions deleted: " + result.removed +
+            "\nQuestions remaining: " + result.remaining);
+        } catch (error) {
+          await ctx.reply("⚠️ Bulk deletion failed: " + error.message);
+        }
+        return;
+      }
+
+      const scope = parseBulkDeleteScope(actionArgs);
+      if (!scope) {
+        await ctx.reply("*BULK DELETE USAGE*\n\n" +
+          prefix + "trivia delete subject Biology\n" +
+          prefix + "trivia delete topic Biology|Cell Biology\n" +
+          prefix + "trivia delete ids ID1,ID2\n" +
+          prefix + "trivia delete all\n\n" +
+          "Confirm with the preview code, or use " + prefix + "trivia delete cancel.");
+        return;
+      }
+      let questions;
+      try {
+        questions = scope.all ? await triviaStore.listQuestions() : await triviaStore.listQuestions(scope);
+      } catch (error) {
+        await ctx.reply("⚠️ Could not prepare deletion: " + error.message);
+        return;
+      }
+      if (!questions.length) {
+        await ctx.reply("No questions match that deletion scope. Nothing was deleted.");
+        return;
+      }
+      const code = randomBytes(3).toString("hex").toUpperCase();
+      const ids = questions.map(question => question.id);
+      const total = (await triviaStore.getStats()).questionCount;
+      pendingBulkDeletes.set(key, { code, ids, expiresAt: Date.now() + BULK_DELETE_CONFIRM_TTL_MS });
+      const label = scope.all ? "ENTIRE QUESTION BANK" : scope.ids ? "SELECTED QUESTION IDs" :
+        scope.subcategory ? scope.subject + " · " + scope.subcategory : scope.subject;
+      await ctx.reply("⚠️ *BULK DELETION PREVIEW*\n\nScope: " + label +
+        "\nQuestions to delete: " + ids.length +
+        "\nQuestions that will remain: " + (total - ids.length) +
+        "\n\nThis action cannot be undone. To proceed, send:\n*" +
+        prefix + "trivia delete confirm " + code + "*\n\n" +
+        "Code expires in 2 minutes. Use *" + prefix + "trivia delete cancel* to cancel.");
       return;
     }
 
