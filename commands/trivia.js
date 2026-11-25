@@ -10,15 +10,15 @@ function isGroup(ctx) {
   return String(ctx.jid || "").endsWith("@g.us");
 }
 
-function ownerOnly(ctx) {
+async function ownerOnly(ctx) {
   if (ctx.owner) return true;
-  void ctx.reply("⛔ Only the bot owner can manage the official Trivia question bank and group access.");
+  await ctx.reply("⛔ Only the bot owner can manage the official Trivia question bank and group access.");
   return false;
 }
 
-function groupOnly(ctx) {
+async function groupOnly(ctx) {
   if (isGroup(ctx)) return true;
-  void ctx.reply("⚠️ This Trivia action must be used inside a WhatsApp group.");
+  await ctx.reply("⚠️ This Trivia action must be used inside a WhatsApp group.");
   return false;
 }
 
