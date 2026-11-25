@@ -12,18 +12,7 @@ const eightBallAnswers = [
   "I wouldn't count on it. 🙃"
 ];
 
-const triviaQuestions = [
-  { q: "Which planet is known as the Red Planet?", a: "mars" },
-  { q: "What is the largest ocean on Earth?", a: "pacific ocean" },
-  { q: "How many sides does a hexagon have?", a: "6" },
-  { q: "Which gas do plants absorb from the atmosphere?", a: "carbon dioxide" },
-  { q: "What is the capital of Japan?", a: "tokyo" },
-  { q: "What is the fastest land animal?", a: "cheetah" },
-  { q: "How many colours are traditionally listed in a rainbow?", a: "7" },
-  { q: "Which organ pumps blood around the human body?", a: "heart" },
-  { q: "What is the chemical symbol for gold?", a: "au" },
-  { q: "Which continent is the Sahara Desert in?", a: "africa" }
-];
+
 
 const riddles = [
   { q: "What has keys but cannot open locks?", a: "piano" },
@@ -156,7 +145,6 @@ export default [
       await ctx.reply("🎯 My choice: *" + pick(options) + "*");
     }
   },
-  challengeCommand("trivia", "Trivia", triviaQuestions),
   challengeCommand("riddle", "Riddle", riddles),
   {
     name: "activity",

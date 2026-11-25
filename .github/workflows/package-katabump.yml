@@ -1,0 +1,41 @@
+name: Package KataBump deployment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build clean deployment archive
+        run: |
+          mkdir -p /tmp/tolu-package
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='node_modules/' \
+            --exclude='data/' \
+            --exclude='auth_info_baileys/' \
+            --exclude='sessions/' \
+            --exclude='.env' \
+            --include='.env.example' \
+            --exclude='.env.*' \
+            --exclude='*.log' \
+            --exclude='*.zip' \
+            ./ /tmp/tolu-package/Tolu-XMD/
+          cd /tmp/tolu-package
+          zip -qr Tolu-XMD-KataBump.zip Tolu-XMD
+          unzip -t Tolu-XMD-KataBump.zip
+
+      - name: Upload KataBump deployment ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tolu-XMD-KataBump
+          path: /tmp/tolu-package/Tolu-XMD-KataBump.zip
+          if-no-files-found: error
+          retention-days: 7

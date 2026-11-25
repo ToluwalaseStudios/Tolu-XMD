@@ -14,7 +14,7 @@ test("selected commands load without collisions and excluded modules stay inacti
   for (const name of [
     "menu", "help", "ping", "alive", "owner", "support", "time", "date",
     "version", "jid", "whoami", "calc", "poll", "coinflip", "dice",
-    "8ball", "choose", "trivia", "riddle", "activity", "vv", "vv2",
+    "8ball", "choose", "trivia", "triviaarena", "riddle", "activity", "vv", "vv2",
     "play", "song", "ytaudio", "ytvideo",
     "mode", "setprefix", "upload", "claude", "deepai", "chatgpt", "gemini", "buildapp", "wormgpt", "moviebox", "txt2video", "fetch", "clideo", "gemtts", "woman1", "woman2", "woman3", "man1", "man2", "man3", "captts"
   ]) {
