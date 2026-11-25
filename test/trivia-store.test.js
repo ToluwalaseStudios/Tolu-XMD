@@ -127,25 +127,46 @@ test("question usage is independent per group and avoids repeats until a cycle i
   });
 });
 
-test("question usage carries across mixed-subject and single-subject competitions", async () => {
+test("questions absent from the last concluded quiz are used first, then older questions fill the remainder", async () => {
   await withStore(async store => {
     const group = "120363012345678901-123456@g.us";
-    await store.addQuestions([
-      question(1, { subject: "Biology" }),
-      question(2, { subject: "Biology" }),
-      question(3, { subject: "Chemistry" }),
-      question(4, { subject: "Chemistry" }),
-      question(5, { subject: "Physics" })
-    ]);
-    const first = await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 1 });
-    const usedId = first.questions[0].id;
-    const mixed = await store.selectQuestions({
+    await store.addQuestions(Array.from({ length: 32 }, (_, index) => question(index + 1)));
+    const firstQuiz = await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 20 });
+    assert.equal(firstQuiz.questions.length, 20);
+
+    // Selecting a game must not consume its questions until it concludes.
+    const samePreview = await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 20 });
+    assert.deepEqual(
+      new Set(samePreview.questions.map(item => item.id)),
+      new Set(firstQuiz.questions.map(item => item.id))
+    );
+
+    await store.recordQuestionsUsed({
       groupJid: group,
-      subjects: ["Biology", "Chemistry", "Physics"],
-      count: 4
+      questionIds: firstQuiz.questions.map(item => item.id)
     });
-    assert.equal(mixed.questions.length, 4);
-    assert.equal(mixed.questions.some(item => item.id === usedId), false);
+
+    const nextQuiz = await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 20 });
+    const previousIds = new Set(firstQuiz.questions.map(item => item.id));
+    const fresh = nextQuiz.questions.filter(item => !previousIds.has(item.id));
+    const repeated = nextQuiz.questions.filter(item => previousIds.has(item.id));
+    assert.equal(nextQuiz.questions.length, 20);
+    assert.equal(fresh.length, 12);
+    assert.equal(repeated.length, 8);
+    assert.equal(new Set(nextQuiz.questions.map(item => item.id)).size, 20);
+    assert.equal(nextQuiz.questions.slice(0, 12).every(item => !previousIds.has(item.id)), true);
+  });
+});
+
+test("a bank smaller than the requested quiz is the only reason to reduce question count", async () => {
+  await withStore(async store => {
+    const group = "120363012345678901-123456@g.us";
+    await store.addQuestions(Array.from({ length: 20 }, (_, index) => question(index + 1)));
+    const result = await store.selectQuestions({ groupJid: group, subjects: ["Biology"], count: 50 });
+    assert.equal(result.questions.length, 20);
+    assert.equal(result.available, 20);
+    assert.equal(result.reduced, true);
+    assert.equal(new Set(result.questions.map(item => item.id)).size, 20);
   });
 });
 
